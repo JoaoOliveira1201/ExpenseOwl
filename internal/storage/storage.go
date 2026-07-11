@@ -60,9 +60,10 @@ type RecurringExpense struct {
 	Currency    string    `json:"currency"`
 	Tags        []string  `json:"tags"`
 	Category    string    `json:"category"`
-	StartDate   time.Time `json:"startDate"`   // date of the first occurrence
-	Interval    string    `json:"interval"`    // daily, weekly, monthly, yearly
-	Occurrences int       `json:"occurrences"` // 0 for 3000 occurrences (heuristic)
+	StartDate   time.Time `json:"startDate"`
+	Interval    string    `json:"interval"`
+	Occurrences int       `json:"occurrences"`
+	Owner       string    `json:"owner"`
 }
 
 type BackendType string
@@ -91,6 +92,7 @@ type Expense struct {
 	Amount      float64   `json:"amount"`
 	Currency    string    `json:"currency"`
 	Date        time.Time `json:"date"`
+	Owner       string    `json:"owner"`
 }
 
 func (c *Config) SetBaseConfig() {

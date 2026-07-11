@@ -132,12 +132,21 @@ function getMonthBounds(date) {
     }
 }
 
-function getMonthExpenses(expenses) {
+function getMonthExpenses(expenses, owner) {
     const { start, end } = getMonthBounds(currentDate);
-    return expenses.filter(exp => {
+    let filtered = expenses.filter(exp => {
         const expDate = new Date(exp.date);
         return expDate >= start && expDate <= end;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    });
+    
+    if (owner) {
+        filtered = filtered.filter(exp => {
+            const expOwner = exp.owner || 'common';
+            return expOwner === owner;
+        });
+    }
+    
+    return filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
 }
 
 function escapeHTML(str) {

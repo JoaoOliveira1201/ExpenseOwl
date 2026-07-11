@@ -55,6 +55,12 @@
             <button id="nextMonth" class="nav-button"><i class="fa-solid fa-arrow-right"></i></button>
         </div>
 
+        <div class="owner-toggle" id="ownerToggle">
+            <button class="owner-button" data-owner="joao">João</button>
+            <button class="owner-button" data-owner="maria">Maria</button>
+            <button class="owner-button" data-owner="common">Common</button>
+        </div>
+
         <div class="table-controls">
             <button id="toggleExpenseFormBtn" class="nav-button"><i class="fa-solid fa-plus"></i> Add Expense</button>
         </div>
@@ -148,6 +154,7 @@
         let categoryColors = {};
         let allTags = new Set();
         let selectedTags = new Set();
+        let currentOwner = 'joao'; // Default to João
 
         function assignCategoryColors(categories) {
             categories.forEach((category, index) => {
@@ -157,10 +164,18 @@
             });
         }
 
+        function filterByOwner(expenses) {
+            return expenses.filter(exp => {
+                const owner = exp.owner || 'common';
+                return owner === currentOwner;
+            });
+        }
+
         function calculateCategoryBreakdown(expenses) {
+            const ownerExpenses = filterByOwner(expenses);
             const categoryTotals = {};
             let totalAmount = 0;
-            expenses.forEach(exp => {
+            ownerExpenses.forEach(exp => {
                 if (exp.amount < 0 && !disabledCategories.has(exp.category)) {
                     const amount = Math.abs(exp.amount);
                     categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + amount;
@@ -177,19 +192,22 @@
         }
 
         function calculateIncome(expenses) {
-            return expenses
+            const ownerExpenses = filterByOwner(expenses);
+            return ownerExpenses
                 .filter(exp => exp.amount > 0)
                 .reduce((sum, exp) => sum + exp.amount, 0);
         }
 
         function calculateExpenses(expenses) {
-            return expenses
+            const ownerExpenses = filterByOwner(expenses);
+            return ownerExpenses
                 .filter(exp => exp.amount < 0)
                 .reduce((sum, exp) => sum + Math.abs(exp.amount), 0);
         }
 
         function updateChartAndLegend() {
-            const monthExpenses = getMonthExpenses(allExpenses);
+            const ownerExpenses = filterByOwner(allExpenses);
+            const monthExpenses = getMonthExpenses(ownerExpenses);
             const chartBox = document.querySelector('.chart-box');
             const legendBox = document.getElementById('customLegend');
             const cashflowSection = document.getElementById('cashflow-section');
@@ -274,7 +292,8 @@
         function updateLegend(categoryData) {
             const legendContainer = document.getElementById('customLegend');
             legendContainer.innerHTML = '';
-            const monthExpenses = getMonthExpenses(allExpenses);
+            const ownerExpenses = filterByOwner(allExpenses);
+            const monthExpenses = getMonthExpenses(ownerExpenses);
             const currentMonthCategories = [...new Set(monthExpenses
                 .filter(exp => exp.amount < 0)
                 .map(exp => exp.category))];
@@ -343,6 +362,13 @@
                 currentCurrency = config.currency;
                 startDate = config.startDate;
                 
+                // Load saved owner preference
+                const savedOwner = localStorage.getItem('expenseowl_owner');
+                if (savedOwner) {
+                    currentOwner = savedOwner;
+                }
+                updateOwnerToggleUI();
+
                 const response = await fetch('/expenses');
                 if (!response.ok) throw new Error('Failed to fetch data');
                 const data = await response.json();
@@ -360,6 +386,7 @@
                 updateMonthDisplay();
                 updateChartAndLegend();
                 setupTagInput();
+                setupOwnerToggle();
             } catch (error) {
                 console.error('Failed to initialize dashboard:', error);
             }
@@ -446,12 +473,33 @@
             container.addEventListener('click', () => input.focus());
             document.addEventListener('click', (e) => {
                 if (!formGroup.contains(e.target)) {
-                    dropdown.style.display = 'none';
-                }
-            });
+dropdown.style.display = 'none';
+            }
         }
+    }
 
-        document.getElementById('prevMonth').addEventListener('click', () => {
+    function updateOwnerToggleUI() {
+        document.querySelectorAll('.owner-button').forEach(btn => {
+            if (btn.dataset.owner === currentOwner) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    function setupOwnerToggle() {
+        document.querySelectorAll('.owner-button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentOwner = btn.dataset.owner;
+                localStorage.setItem('expenseowl_owner', currentOwner);
+                updateOwnerToggleUI();
+                updateChartAndLegend();
+            });
+        });
+    }
+
+    document.getElementById('prevMonth').addEventListener('click', () => {
             currentDate.setMonth(currentDate.getMonth() - 1);
             updateMonthDisplay();
             updateChartAndLegend();
@@ -488,7 +536,8 @@
                 category: document.getElementById('category').value,
                 amount: amount,
                 date: getISODateWithLocalTime(document.getElementById('date').value),
-                tags: Array.from(selectedTags)
+                tags: Array.from(selectedTags),
+                owner: currentOwner
             };
             try {
                 const response = await fetch('/expense', {

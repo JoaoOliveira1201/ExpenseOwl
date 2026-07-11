@@ -41,6 +41,12 @@
             <div class="current-month" id="currentMonth"></div>
             <button id="nextMonth" class="nav-button"><i class="fa-solid fa-arrow-right"></i></button>
         </div>
+
+        <div class="owner-toggle" id="ownerToggle">
+            <button class="owner-button" data-owner="joao">João</button>
+            <button class="owner-button" data-owner="maria">Maria</button>
+            <button class="owner-button" data-owner="common">Common</button>
+        </div>
         
         <div class="table-controls">
             <label for="showAllToggle">
@@ -123,6 +129,7 @@
         let startDate = 1;
         let allTags = new Set();
         let selectedTags = new Set();
+        let currentOwner = 'joao';
 
         function createTable(expenses) {
             if (!expenses || expenses.length === 0) {
@@ -167,16 +174,45 @@
             `;
         }
 
+        function filterByOwner(expenses) {
+            return expenses.filter(exp => {
+                const owner = exp.owner || 'common';
+                return owner === currentOwner;
+            });
+        }
+
         function updateTable() {
             const showAll = document.getElementById('showAllToggle').checked;
             document.querySelector('.month-navigation').style.display = showAll ? 'none' : 'flex';
 
+            const ownerExpenses = filterByOwner(allExpenses);
             expensesForTable = showAll
-                ? allExpenses.slice().sort((a, b) => new Date(b.date) - new Date(a.date))
-                : getMonthExpenses(allExpenses);
+                ? ownerExpenses.slice().sort((a, b) => new Date(b.date) - new Date(a.date))
+                : getMonthExpenses(ownerExpenses);
             
             const tableContainer = document.getElementById('tableContainer');
             tableContainer.innerHTML = createTable(expensesForTable);
+        }
+
+        function updateOwnerToggleUI() {
+            document.querySelectorAll('.owner-button').forEach(btn => {
+                if (btn.dataset.owner === currentOwner) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function setupOwnerToggle() {
+            document.querySelectorAll('.owner-button').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentOwner = btn.dataset.owner;
+                    localStorage.setItem('expenseowl_owner', currentOwner);
+                    updateOwnerToggleUI();
+                    updateTable();
+                });
+            });
         }
 
         function editExpenseByIndex(index) {
@@ -314,6 +350,14 @@
                 currentCurrency = config.currency;
                 startDate = config.startDate;
                 
+                // Load saved owner preference
+                const savedOwner = localStorage.getItem('expenseowl_owner');
+                if (savedOwner) {
+                    currentOwner = savedOwner;
+                }
+                updateOwnerToggleUI();
+                setupOwnerToggle();
+
                 const response = await fetch('/expenses');
                 if (!response.ok) throw new Error('Failed to fetch data');
                 const data = await response.json();
@@ -409,7 +453,8 @@
                 category: document.getElementById('category').value,
                 amount: amount,
                 date: getISODateWithLocalTime(document.getElementById('date').value),
-                tags: Array.from(selectedTags)
+                tags: Array.from(selectedTags),
+                owner: currentOwner
             };
             try {
                 const url = editId ? `/expense/edit?id=${editId}` : '/expense';

@@ -175,6 +175,7 @@
         }
 
         function filterByOwner(expenses) {
+            if (currentOwner === 'common') return expenses;
             return expenses.filter(exp => {
                 const owner = exp.owner || 'common';
                 return owner === currentOwner;

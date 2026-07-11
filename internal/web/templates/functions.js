@@ -139,7 +139,7 @@ function getMonthExpenses(expenses, owner) {
         return expDate >= start && expDate <= end;
     });
     
-    if (owner) {
+    if (owner && owner !== 'common') {
         filtered = filtered.filter(exp => {
             const expOwner = exp.owner || 'common';
             return expOwner === owner;

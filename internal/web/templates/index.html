@@ -470,13 +470,13 @@
                 }
             });
 
-            container.addEventListener('click', () => input.focus());
+container.addEventListener('click', () => input.focus());
             document.addEventListener('click', (e) => {
                 if (!formGroup.contains(e.target)) {
-dropdown.style.display = 'none';
-            }
+                    dropdown.style.display = 'none';
+                }
+            });
         }
-    }
 
     function updateOwnerToggleUI() {
         document.querySelectorAll('.owner-button').forEach(btn => {

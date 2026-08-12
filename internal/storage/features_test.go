@@ -66,6 +66,15 @@ func TestCategoryParentDefaultsAndValidation(t *testing.T) {
 	}
 }
 
+func TestAllocationTargetsValidation(t *testing.T) {
+	if err := DefaultAllocationTargets().Validate(); err != nil {
+		t.Fatalf("default allocation targets should be valid: %v", err)
+	}
+	if err := (AllocationTargets{EssentialsMax: 101, LifestyleMax: 30, SavingsMin: 20}).Validate(); err == nil {
+		t.Fatal("expected an allocation target over 100% to be rejected")
+	}
+}
+
 func TestGenerateMonthlyExpenses(t *testing.T) {
 	start := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	items := generateExpenses(RecurringExpense{ID: "rule", Name: "Rent", Category: "Rent", Amount: -900, StartDate: start, Interval: "monthly", Occurrences: 3, Owner: "common"}, false)

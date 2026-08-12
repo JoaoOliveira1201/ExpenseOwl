@@ -78,9 +78,11 @@ func (store *PostgresStore) migrate(ctx context.Context) error {
 			id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
 			categories JSONB NOT NULL,
 			category_targets JSONB NOT NULL DEFAULT '{}',
-			category_parents JSONB NOT NULL DEFAULT '{}'
+			category_parents JSONB NOT NULL DEFAULT '{}',
+			allocation_targets JSONB NOT NULL DEFAULT '{"essentialsMax":50,"lifestyleMax":30,"savingsMin":20}'
 		)`,
 		`ALTER TABLE app_config ADD COLUMN IF NOT EXISTS category_parents JSONB NOT NULL DEFAULT '{}'`,
+		`ALTER TABLE app_config ADD COLUMN IF NOT EXISTS allocation_targets JSONB NOT NULL DEFAULT '{"essentialsMax":50,"lifestyleMax":30,"savingsMin":20}'`,
 		`DO $$ BEGIN
 			IF to_regclass('public.config') IS NOT NULL THEN
 				INSERT INTO app_config (id, categories, category_targets)
@@ -140,11 +142,11 @@ func (store *PostgresStore) migrate(ctx context.Context) error {
 }
 
 func (store *PostgresStore) GetConfig(ctx context.Context) (Config, error) {
-	var categoriesJSON, targetsJSON, parentsJSON []byte
-	if err := store.db.QueryRowContext(ctx, `SELECT categories, category_targets, category_parents FROM app_config WHERE id = 1`).Scan(&categoriesJSON, &targetsJSON, &parentsJSON); err != nil {
+	var categoriesJSON, targetsJSON, parentsJSON, allocationJSON []byte
+	if err := store.db.QueryRowContext(ctx, `SELECT categories, category_targets, category_parents, allocation_targets FROM app_config WHERE id = 1`).Scan(&categoriesJSON, &targetsJSON, &parentsJSON, &allocationJSON); err != nil {
 		return Config{}, err
 	}
-	config := Config{Currency: Currency, StartDate: StartDate, CategoryTargets: map[string]float64{}, CategoryParents: map[string]string{}}
+	config := Config{Currency: Currency, StartDate: StartDate, CategoryTargets: map[string]float64{}, CategoryParents: map[string]string{}, AllocationTargets: DefaultAllocationTargets()}
 	if err := json.Unmarshal(categoriesJSON, &config.Categories); err != nil {
 		return Config{}, fmt.Errorf("decode categories: %w", err)
 	}
@@ -153,6 +155,9 @@ func (store *PostgresStore) GetConfig(ctx context.Context) (Config, error) {
 	}
 	if err := json.Unmarshal(parentsJSON, &config.CategoryParents); err != nil {
 		return Config{}, fmt.Errorf("decode category parents: %w", err)
+	}
+	if err := json.Unmarshal(allocationJSON, &config.AllocationTargets); err != nil {
+		return Config{}, fmt.Errorf("decode allocation targets: %w", err)
 	}
 	for _, category := range config.Categories {
 		if !ValidateCategoryParent(config.CategoryParents[category]) {
@@ -186,6 +191,15 @@ func (store *PostgresStore) UpdateCategoryParents(ctx context.Context, parents m
 		return err
 	}
 	_, err = store.db.ExecContext(ctx, `UPDATE app_config SET category_parents = $1 WHERE id = 1`, data)
+	return err
+}
+
+func (store *PostgresStore) UpdateAllocationTargets(ctx context.Context, targets AllocationTargets) error {
+	data, err := json.Marshal(targets)
+	if err != nil {
+		return err
+	}
+	_, err = store.db.ExecContext(ctx, `UPDATE app_config SET allocation_targets = $1 WHERE id = 1`, data)
 	return err
 }
 

@@ -75,12 +75,39 @@ document.addEventListener('DOMContentLoaded', () => {
             lifestyle: spending.lifestyle / income * 100,
             savings: (income - spending.essentials - spending.lifestyle) / income * 100
         } : null;
+        const targets = { essentialsMax: 50, lifestyleMax: 30, savingsMin: 20, ...(config.allocationTargets || {}) };
+        const breaches = [];
         ['essentials', 'lifestyle', 'savings'].forEach(kind => {
             const element = document.getElementById(`${kind}Percent`);
-            element.textContent = values ? `${Math.round(values[kind])}%` : '—';
-            element.parentElement.setAttribute('aria-label', values ? `${kind}: ${Math.round(values[kind])}%` : `${kind}: unavailable without income`);
+            const part = element.parentElement;
+            const note = part.querySelector('.allocation-note');
+            part.classList.remove('warning', 'danger');
+            note.textContent = '';
+            const shown = values ? Math.round(values[kind]) : null;
+            element.textContent = values ? `${shown}%` : '—';
+            let status = '';
+            if (values) {
+                const target = kind === 'essentials' ? targets.essentialsMax : kind === 'lifestyle' ? targets.lifestyleMax : targets.savingsMin;
+                const crossed = kind === 'savings' ? shown < target : shown > target;
+                const close = target > 0 && (kind === 'savings' ? shown <= target * 1.1 : shown >= target * .9);
+                if (crossed) {
+                    const difference = Math.abs(shown - target);
+                    status = `${difference} ${difference === 1 ? 'point' : 'points'} ${kind === 'savings' ? 'below' : 'over'} the ${target}% ${kind === 'savings' ? 'minimum' : 'maximum'}`;
+                    part.classList.add('danger');
+                    note.textContent = status;
+                    breaches.push(`${kind[0].toUpperCase()}${kind.slice(1)} is ${status}.`);
+                } else if (close) {
+                    status = `Near ${target}% ${kind === 'savings' ? 'minimum' : 'maximum'}`;
+                    part.classList.add('warning');
+                    note.textContent = status;
+                }
+            }
+            part.setAttribute('aria-label', values ? `${kind}: ${shown}%. ${status}`.trim() : `${kind}: unavailable without income`);
         });
         document.querySelector('.allocation-part.savings').classList.toggle('negative', Boolean(values && values.savings < 0));
+        const alert = document.getElementById('allocationAlert');
+        alert.hidden = !breaches.length;
+        alert.textContent = breaches.join(' ');
     }
 
     function categoryBreakdown(current) {

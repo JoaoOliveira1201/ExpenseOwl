@@ -194,6 +194,26 @@ func (h *Handler) UpdateCategoryParents(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
+func (h *Handler) UpdateAllocationTargets(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodPut) {
+		return
+	}
+	var targets storage.AllocationTargets
+	if err := decodeJSON(r, &targets); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{err.Error()})
+		return
+	}
+	if err := targets.Validate(); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{err.Error()})
+		return
+	}
+	if err := h.storage.UpdateAllocationTargets(r.Context(), targets); err != nil {
+		h.serverError(w, "save allocation targets", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
 func (h *Handler) GetExpenses(w http.ResponseWriter, r *http.Request) {
 	if !method(w, r, http.MethodGet) {
 		return

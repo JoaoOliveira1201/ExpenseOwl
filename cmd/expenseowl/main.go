@@ -43,6 +43,7 @@ func main() {
 	mux.HandleFunc("/category-targets", handler.GetCategoryTargets)
 	mux.HandleFunc("/category-targets/edit", handler.UpdateCategoryTargets)
 	mux.HandleFunc("/category-parents/edit", handler.UpdateCategoryParents)
+	mux.HandleFunc("/allocation-targets/edit", handler.UpdateAllocationTargets)
 	mux.HandleFunc("/expense", handler.AddExpense)
 	mux.HandleFunc("/expenses", handler.GetExpenses)
 	mux.HandleFunc("/expense/edit", handler.EditExpense)

@@ -28,6 +28,7 @@ type Store interface {
 	UpdateCategories(context.Context, []string) error
 	UpdateCategoryTargets(context.Context, map[string]float64) error
 	UpdateCategoryParents(context.Context, map[string]string) error
+	UpdateAllocationTargets(context.Context, AllocationTargets) error
 
 	GetExpenses(context.Context, ExpenseFilter) ([]Expense, error)
 	GetExpense(context.Context, string) (Expense, error)
@@ -43,11 +44,36 @@ type Store interface {
 }
 
 type Config struct {
-	Categories      []string           `json:"categories"`
-	CategoryTargets map[string]float64 `json:"categoryTargets"`
-	CategoryParents map[string]string  `json:"categoryParents"`
-	Currency        string             `json:"currency"`
-	StartDate       int                `json:"startDate"`
+	Categories        []string           `json:"categories"`
+	CategoryTargets   map[string]float64 `json:"categoryTargets"`
+	CategoryParents   map[string]string  `json:"categoryParents"`
+	AllocationTargets AllocationTargets `json:"allocationTargets"`
+	Currency          string             `json:"currency"`
+	StartDate         int                `json:"startDate"`
+}
+
+type AllocationTargets struct {
+	EssentialsMax float64 `json:"essentialsMax"`
+	LifestyleMax  float64 `json:"lifestyleMax"`
+	SavingsMin    float64 `json:"savingsMin"`
+}
+
+func DefaultAllocationTargets() AllocationTargets {
+	return AllocationTargets{EssentialsMax: 50, LifestyleMax: 30, SavingsMin: 20}
+}
+
+func (targets AllocationTargets) Validate() error {
+	values := map[string]float64{
+		"essentials maximum": targets.EssentialsMax,
+		"lifestyle maximum":  targets.LifestyleMax,
+		"savings minimum":    targets.SavingsMin,
+	}
+	for label, value := range values {
+		if value < 0 || value > 100 {
+			return fmt.Errorf("%s must be between 0%% and 100%%", label)
+		}
+	}
+	return nil
 }
 
 func DefaultCategoryParent(category string) string {

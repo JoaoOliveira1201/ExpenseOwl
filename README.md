@@ -89,7 +89,16 @@ Dashboard Showcase:
 
 # Installation
 
-The recommended installation method is Docker. To run the container via CLI, use the following command:
+To build the current source checkout with Go and run ExpenseOwl in the background, use the deployment script:
+
+```bash
+./deploy.sh       # uses port 8080
+./deploy.sh 5006  # optionally choose another port
+```
+
+The script requires Go, keeps its binary, PID, and log in `.expenseowl`, and prints the detected local IP address, port, and URL after startup. Expense data remains in the repository's `data` directory.
+
+The recommended container installation method is Docker. To run the container via CLI, use the following command:
 
 ```bash
 docker run --rm -d \
@@ -98,15 +107,6 @@ docker run --rm -d \
   -v expenseowl:/app/data \
   tanq16/expenseowl:main
 ```
-
-To build the current source checkout and deploy it locally with Docker, run:
-
-```bash
-./deploy.sh       # uses port 8080
-./deploy.sh 5006  # optionally choose another port
-```
-
-The script keeps application data in the `expenseowl` Docker volume and prints the detected local IP address, port, and URL after startup.
 
 To use Docker compose, use this YAML definition:
 

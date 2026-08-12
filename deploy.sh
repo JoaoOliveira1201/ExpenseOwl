@@ -3,9 +3,11 @@
 set -Eeuo pipefail
 
 readonly SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-readonly IMAGE_NAME="expenseowl:local"
-readonly CONTAINER_NAME="expenseowl"
-readonly VOLUME_NAME="expenseowl"
+readonly RUNTIME_DIR="$SCRIPT_DIR/.expenseowl"
+readonly BINARY_PATH="$RUNTIME_DIR/expenseowl"
+readonly NEW_BINARY_PATH="$RUNTIME_DIR/expenseowl.new"
+readonly PID_PATH="$RUNTIME_DIR/expenseowl.pid"
+readonly LOG_PATH="$RUNTIME_DIR/expenseowl.log"
 readonly HOST_PORT="${1:-${EXPENSEOWL_PORT:-8080}}"
 
 if [[ ! "$HOST_PORT" =~ ^[0-9]+$ ]] || ((HOST_PORT < 1 || HOST_PORT > 65535)); then
@@ -14,39 +16,65 @@ if [[ ! "$HOST_PORT" =~ ^[0-9]+$ ]] || ((HOST_PORT < 1 || HOST_PORT > 65535)); t
     exit 1
 fi
 
-if ! command -v docker >/dev/null 2>&1; then
-    echo "Docker is required but was not found in PATH." >&2
-    exit 1
-fi
-
-if ! docker info >/dev/null 2>&1; then
-    echo "Docker is installed, but the Docker daemon is not available." >&2
+if ! command -v go >/dev/null 2>&1; then
+    echo "Go is required but was not found in PATH." >&2
     exit 1
 fi
 
 cd "$SCRIPT_DIR"
+mkdir -p "$RUNTIME_DIR"
 
 echo "Building ExpenseOwl..."
-docker build --tag "$IMAGE_NAME" .
+go build -o "$NEW_BINARY_PATH" ./cmd/expenseowl
 
-if docker container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
-    echo "Replacing the existing ExpenseOwl container..."
-    docker container rm --force "$CONTAINER_NAME" >/dev/null
+if [[ -f "$PID_PATH" ]]; then
+    old_pid="$(<"$PID_PATH")"
+    if [[ "$old_pid" =~ ^[0-9]+$ ]] && kill -0 "$old_pid" 2>/dev/null; then
+        process_command="$(ps -p "$old_pid" -o command= 2>/dev/null || true)"
+        if [[ "$process_command" == "$BINARY_PATH"* ]]; then
+            echo "Stopping the existing ExpenseOwl process ($old_pid)..."
+            kill "$old_pid"
+            for _ in {1..20}; do
+                if ! kill -0 "$old_pid" 2>/dev/null; then
+                    break
+                fi
+                sleep 0.25
+            done
+            if kill -0 "$old_pid" 2>/dev/null; then
+                echo "The existing ExpenseOwl process did not stop in time." >&2
+                exit 1
+            fi
+        else
+            echo "Ignoring stale PID file; process $old_pid is not ExpenseOwl."
+        fi
+    fi
 fi
 
-echo "Starting ExpenseOwl..."
-docker run \
-    --detach \
-    --restart unless-stopped \
-    --name "$CONTAINER_NAME" \
-    --publish "${HOST_PORT}:8080" \
-    --volume "${VOLUME_NAME}:/app/data" \
-    "$IMAGE_NAME" >/dev/null
+mv "$NEW_BINARY_PATH" "$BINARY_PATH"
 
-sleep 1
-if [[ "$(docker container inspect --format '{{.State.Running}}' "$CONTAINER_NAME")" != "true" ]]; then
-    echo "ExpenseOwl failed to start. Container logs:" >&2
-    docker container logs "$CONTAINER_NAME" >&2
+echo "Starting ExpenseOwl..."
+nohup "$BINARY_PATH" -port "$HOST_PORT" >"$LOG_PATH" 2>&1 &
+app_pid=$!
+printf '%s\n' "$app_pid" >"$PID_PATH"
+
+ready=false
+for _ in {1..20}; do
+    if ! kill -0 "$app_pid" 2>/dev/null; then
+        break
+    fi
+    if command -v curl >/dev/null 2>&1 && curl --fail --silent --output /dev/null "http://127.0.0.1:${HOST_PORT}/"; then
+        ready=true
+        break
+    elif ! command -v curl >/dev/null 2>&1 && (exec 3<>"/dev/tcp/127.0.0.1/${HOST_PORT}") 2>/dev/null; then
+        ready=true
+        break
+    fi
+    sleep 0.25
+done
+
+if [[ "$ready" != "true" ]]; then
+    echo "ExpenseOwl failed to become ready. Application log:" >&2
+    tail -n 30 "$LOG_PATH" >&2 || true
     exit 1
 fi
 
@@ -62,6 +90,8 @@ local_ip="${local_ip:-127.0.0.1}"
 echo
 echo "ExpenseOwl is running."
 echo "Note: Android standalone PWA installation still requires an HTTPS address."
+echo "PID: $app_pid"
 echo "Local IP: $local_ip"
 echo "Port: $HOST_PORT"
 echo "URL: http://${local_ip}:${HOST_PORT}"
+echo "Log: $LOG_PATH"

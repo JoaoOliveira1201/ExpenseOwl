@@ -1,8 +1,12 @@
 {
+    "id": "/",
     "name": "ExpenseOwl",
     "short_name": "ExpenseOwl",
+    "description": "A simple, self-hosted expense tracker.",
     "start_url": "/",
+    "scope": "/",
     "display": "standalone",
+    "prefer_related_applications": false,
     "background_color": "#1a1a1a",
     "theme_color": "#1a1a1a",
     "icons": [

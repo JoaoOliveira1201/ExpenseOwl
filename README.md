@@ -59,6 +59,9 @@ So, I created this project and I use it in my home lab for expenses. The primary
 
 The front end of ExpenseOwl can be installed as a Progressive Web App on desktop and mobile devices (i.e., the back end still needs to be self-hosted). To install:
 
+> [!IMPORTANT]
+> Open ExpenseOwl over HTTPS before installing it. Browsers only install a site as a standalone PWA from a secure origin (`localhost` is the development exception). When opened from a plain HTTP hostname or LAN IP address, Chrome may only add a browser shortcut, which will continue to show the URL bar.
+
 - Desktop: Click the install icon in your browser's address bar
 - iOS: Use Safari's "Add to Home Screen" option in the share menu
 - Android: Use Chrome's "Install" option in the menu
@@ -95,6 +98,15 @@ docker run --rm -d \
   -v expenseowl:/app/data \
   tanq16/expenseowl:main
 ```
+
+To build the current source checkout and deploy it locally with Docker, run:
+
+```bash
+./deploy.sh       # uses port 8080
+./deploy.sh 5006  # optionally choose another port
+```
+
+The script keeps application data in the `expenseowl` Docker volume and prints the detected local IP address, port, and URL after startup.
 
 To use Docker compose, use this YAML definition:
 

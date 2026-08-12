@@ -390,6 +390,12 @@ func (h *Handler) ServeStaticFile(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
 		return
 	}
+	if r.URL.Path == "/sw.js" {
+		// Service worker updates should be checked on every visit. Its location at
+		// the origin root also gives it control over every ExpenseOwl page.
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Service-Worker-Allowed", "/")
+	}
 	if err := web.ServeStatic(w, r.URL.Path); err != nil {
 		http.Error(w, "Failed to serve static file", http.StatusInternalServerError)
 	}

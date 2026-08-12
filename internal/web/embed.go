@@ -27,6 +27,9 @@ func ServeStatic(w http.ResponseWriter, staticPath string) error {
 	if err != nil {
 		return err
 	}
+	if staticPath == "/manifest.json" {
+		w.Header().Set("Content-Type", "application/manifest+json")
+	}
 	ext := filepath.Ext(staticPath)
 	switch ext {
 	case ".js":
@@ -46,7 +49,9 @@ func ServeStatic(w http.ResponseWriter, staticPath string) error {
 	case ".ico":
 		w.Header().Set("Content-Type", "image/x-icon")
 	case ".json":
-		w.Header().Set("Content-Type", "application/json")
+		if staticPath != "/manifest.json" {
+			w.Header().Set("Content-Type", "application/json")
+		}
 	}
 	_, err = w.Write(staticContent)
 	return err

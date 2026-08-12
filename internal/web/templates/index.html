@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="/fa.min.css">
     <meta name="theme-color" content="#1a1a1a">
     <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="manifest" href="/manifest.json">
     <link rel="apple-touch-icon" href="/pwa/icon-192.png">
@@ -20,13 +21,7 @@
             }
         })();
     </script>
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js');
-            });
-        }
-    </script>
+    <script src="/pwa.js"></script>
     <title>ExpenseOwl Dashboard</title>
     <script src="/chart.min.js"></script>
 </head>

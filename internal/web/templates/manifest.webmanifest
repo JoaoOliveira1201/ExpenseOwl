@@ -12,8 +12,14 @@
     "theme_color": "#e8eee8",
     "icons": [
         {
-            "src": "/pwa/household-1254.png",
-            "sizes": "1254x1254",
+            "src": "/pwa/household-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "/pwa/household-512.png",
+            "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
         }

@@ -122,6 +122,20 @@ func (store *PostgresStore) migrate(ctx context.Context) error {
 	if _, err := tx.ExecContext(ctx, `INSERT INTO app_config (id, categories) VALUES (1, $1) ON CONFLICT (id) DO NOTHING`, categories); err != nil {
 		return err
 	}
+	cleanupStatements := []string{
+		`UPDATE app_config SET
+			categories = COALESCE((SELECT jsonb_agg(value) FROM jsonb_array_elements(categories) AS value WHERE lower(value #>> '{}') <> 'income'), '[]'::jsonb),
+			category_targets = COALESCE((SELECT jsonb_object_agg(key, value) FROM jsonb_each(category_targets) WHERE lower(key) <> 'income'), '{}'::jsonb),
+			category_parents = COALESCE((SELECT jsonb_object_agg(key, value) FROM jsonb_each(category_parents) WHERE lower(key) <> 'income'), '{}'::jsonb)
+		WHERE id = 1`,
+		`UPDATE expenses SET category = '' WHERE amount > 0 AND category <> ''`,
+		`UPDATE recurring_expenses SET category = '' WHERE amount > 0 AND category <> ''`,
+	}
+	for _, statement := range cleanupStatements {
+		if _, err := tx.ExecContext(ctx, statement); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 

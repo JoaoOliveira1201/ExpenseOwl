@@ -91,8 +91,12 @@ func (h *Handler) UpdateCategories(w http.ResponseWriter, r *http.Request) {
 	categories := make([]string, 0, len(input))
 	for _, candidate := range input {
 		category, err := storage.ValidateCategory(candidate)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{err.Error()})
+			return
+		}
 		key := strings.ToLower(category)
-		if err != nil || seen[key] {
+		if seen[key] {
 			continue
 		}
 		seen[key] = true

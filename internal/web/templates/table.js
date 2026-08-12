@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('nextMonth').disabled = allDates;
         const items = filtered();
         document.getElementById('resultCount').textContent = `${items.length} transaction${items.length === 1 ? '' : 's'} in this view.`;
-        document.getElementById('rows').innerHTML = items.map(expense => `<tr data-id="${expense.id}"><td>${E.dateTime(expense.date)}</td><td><strong>${E.escape(expense.name)}</strong>${expense.receipt ? ` <a href="${E.escape(expense.receipt)}" target="_blank" aria-label="View receipt">↗</a>` : ''}</td><td>${E.escape(expense.category)}</td><td>${E.ownerLabel(expense.owner)}</td><td class="notes" title="${E.escape(expense.notes || '')}">${E.escape(expense.notes || '—')}</td><td class="amount ${expense.amount > 0 ? 'gain' : 'cost'}">${E.euro(expense.amount)}</td><td><div class="row-actions"><button class="icon-button edit" aria-label="Edit">Edit</button><button class="icon-button delete" aria-label="Delete">Delete</button></div></td></tr>`).join('');
+        document.getElementById('rows').innerHTML = items.map(expense => `<tr data-id="${expense.id}"><td>${E.dateTime(expense.date)}</td><td><strong>${E.escape(expense.name)}</strong>${expense.receipt ? ` <a href="${E.escape(expense.receipt)}" target="_blank" aria-label="View receipt">↗</a>` : ''}</td><td>${expense.amount > 0 ? '—' : E.escape(expense.category)}</td><td>${E.ownerLabel(expense.owner)}</td><td class="notes" title="${E.escape(expense.notes || '')}">${E.escape(expense.notes || '—')}</td><td class="amount ${expense.amount > 0 ? 'gain' : 'cost'}">${E.euro(expense.amount)}</td><td><div class="row-actions"><button class="icon-button edit" aria-label="Edit">Edit</button><button class="icon-button delete" aria-label="Delete">Delete</button></div></td></tr>`).join('');
         document.getElementById('empty').hidden = items.length !== 0;
     }
 
@@ -52,10 +52,18 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('amount').value = Math.abs(expense.amount);
         document.getElementById('date').value = E.localDateISO(new Date(expense.date));
         document.getElementById('gain').checked = expense.amount > 0;
+        syncCategoryField();
         document.getElementById('notes').value = expense.notes || '';
         document.getElementById('removeReceiptLabel').hidden = !expense.receipt;
         document.getElementById('removeReceipt').checked = false;
         editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    function syncCategoryField() {
+        const income = document.getElementById('gain').checked;
+        const category = document.getElementById('category');
+        document.getElementById('categoryField').hidden = income;
+        category.required = !income;
+        if (!income && !category.value && category.options.length) category.selectedIndex = 0;
     }
     function closeEditor() { editing = null; editor.classList.remove('open'); E.setMessage(document.getElementById('formMessage')); }
 
@@ -66,6 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('showAll').addEventListener('change', load);
     filterInputs.forEach(input => input.addEventListener('input', render));
     document.getElementById('clearFilters').addEventListener('click', () => { filterInputs.forEach(input => input.value = ''); render(); });
+    document.getElementById('gain').addEventListener('change', syncCategoryField);
 
     document.getElementById('rows').addEventListener('click', async event => {
         const row = event.target.closest('tr');
@@ -89,7 +98,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let amount = Number(document.getElementById('amount').value);
             if (!document.getElementById('gain').checked) amount *= -1;
             const receipt = replacement || (document.getElementById('removeReceipt').checked ? '' : editing.receipt || '');
-            const payload = { recurringID: editing.recurringID || '', name: document.getElementById('name').value, category: document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: editing.owner || getOwner(), notes: document.getElementById('notes').value, receipt };
+            const payload = { recurringID: editing.recurringID || '', name: document.getElementById('name').value, category: amount > 0 ? '' : document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: editing.owner || getOwner(), notes: document.getElementById('notes').value, receipt };
             const url = `/expense/edit?id=${encodeURIComponent(editing.id)}`;
             await E.request(url, E.json('PUT', payload));
             E.setMessage(message, 'Transaction saved.', 'success');

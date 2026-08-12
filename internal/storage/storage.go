@@ -9,15 +9,15 @@ import (
 )
 
 const (
-	Currency         = "EUR"
-	StartDate        = 1
-	ParentEssential  = "essentials"
-	ParentLifestyle  = "lifestyle"
+	Currency        = "EUR"
+	StartDate       = 1
+	ParentEssential = "essentials"
+	ParentLifestyle = "lifestyle"
 )
 
 var defaultCategories = []string{
 	"Food", "Groceries", "Travel", "Rent", "Utilities",
-	"Entertainment", "Healthcare", "Shopping", "Miscellaneous", "Income",
+	"Entertainment", "Healthcare", "Shopping", "Miscellaneous",
 }
 
 // Store is the persistence contract used by the HTTP layer. ExpenseOwl has one
@@ -116,6 +116,9 @@ func ValidateCategory(category string) (string, error) {
 	if category == "" {
 		return "", fmt.Errorf("category cannot be empty")
 	}
+	if strings.EqualFold(category, "income") {
+		return "", fmt.Errorf("income is a transaction type, not a category")
+	}
 	return category, nil
 }
 
@@ -124,11 +127,16 @@ func (expense *Expense) Validate() error {
 	expense.Category = SanitizeString(expense.Category)
 	expense.Owner = normalizeOwner(expense.Owner)
 	expense.Notes = SanitizeNotes(expense.Notes)
-	if expense.Name == "" || expense.Category == "" {
-		return fmt.Errorf("name and category are required")
+	if expense.Name == "" {
+		return fmt.Errorf("name is required")
 	}
 	if expense.Amount == 0 {
 		return fmt.Errorf("amount cannot be zero")
+	}
+	if expense.Amount > 0 {
+		expense.Category = ""
+	} else if _, err := ValidateCategory(expense.Category); err != nil {
+		return err
 	}
 	if expense.Date.IsZero() {
 		return fmt.Errorf("date is required")
@@ -150,11 +158,16 @@ func (recurring *RecurringExpense) Validate() error {
 	recurring.Category = SanitizeString(recurring.Category)
 	recurring.Owner = normalizeOwner(recurring.Owner)
 	recurring.Notes = SanitizeNotes(recurring.Notes)
-	if recurring.Name == "" || recurring.Category == "" {
-		return fmt.Errorf("name and category are required")
+	if recurring.Name == "" {
+		return fmt.Errorf("name is required")
 	}
 	if recurring.Amount == 0 {
 		return fmt.Errorf("amount cannot be zero")
+	}
+	if recurring.Amount > 0 {
+		recurring.Category = ""
+	} else if _, err := ValidateCategory(recurring.Category); err != nil {
+		return err
 	}
 	if recurring.StartDate.IsZero() {
 		return fmt.Errorf("start date is required")

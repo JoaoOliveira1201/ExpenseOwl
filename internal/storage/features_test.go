@@ -25,6 +25,35 @@ func TestExpenseRejectsUnsafeReceiptReference(t *testing.T) {
 	}
 }
 
+func TestIncomeDoesNotHaveCategory(t *testing.T) {
+	income := Expense{Name: "Salary", Category: "Food", Amount: 2500, Date: time.Now()}
+	if err := income.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if income.Category != "" {
+		t.Fatalf("expected income category to be cleared, got %q", income.Category)
+	}
+}
+
+func TestSpendingRequiresNonIncomeCategory(t *testing.T) {
+	for _, category := range []string{"", "Income", "income"} {
+		expense := Expense{Name: "Test", Category: category, Amount: -1, Date: time.Now()}
+		if err := expense.Validate(); err == nil {
+			t.Fatalf("expected category %q to be rejected", category)
+		}
+	}
+}
+
+func TestRecurringIncomeDoesNotHaveCategory(t *testing.T) {
+	income := RecurringExpense{Name: "Salary", Category: "Income", Amount: 2500, StartDate: time.Now(), Interval: "monthly", Occurrences: 2}
+	if err := income.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if income.Category != "" {
+		t.Fatalf("expected recurring income category to be cleared, got %q", income.Category)
+	}
+}
+
 func TestCategoryParentDefaultsAndValidation(t *testing.T) {
 	if DefaultCategoryParent("Shopping") != ParentLifestyle {
 		t.Fatal("shopping should default to lifestyle")

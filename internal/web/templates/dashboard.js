@@ -23,6 +23,8 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('entryKind').textContent = income ? 'New income' : 'New expense';
         document.getElementById('entryTitle').textContent = income ? 'Record income' : 'Record a transaction';
         document.getElementById('saveEntry').textContent = income ? 'Save income' : 'Save transaction';
+        document.getElementById('categoryField').hidden = income;
+        document.getElementById('category').required = !income;
         drawer.classList.add('open');
         document.getElementById('name').focus();
     }
@@ -143,7 +145,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const receipt = await E.uploadReceipt(document.getElementById('receipt').files[0]);
             let amount = Number(document.getElementById('amount').value);
             if (entryMode === 'expense') amount *= -1;
-            await E.request('/expense', E.json('PUT', { name: document.getElementById('name').value, category: document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: getOwner(), notes: document.getElementById('notes').value, receipt }));
+            await E.request('/expense', E.json('PUT', { name: document.getElementById('name').value, category: entryMode === 'income' ? '' : document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: getOwner(), notes: document.getElementById('notes').value, receipt }));
             form.reset(); document.getElementById('date').value = E.localDateISO();
             form.querySelector('details').open = false;
             E.setMessage(message, entryMode === 'income' ? 'Income saved.' : 'Transaction saved.', 'success');

@@ -70,6 +70,8 @@ func runServer(port int) {
 	http.HandleFunc("/currency/edit", handler.UpdateCurrency)
 	http.HandleFunc("/startdate", handler.GetStartDate)
 	http.HandleFunc("/startdate/edit", handler.UpdateStartDate)
+	http.HandleFunc("/category-targets", handler.GetCategoryTargets)
+	http.HandleFunc("/category-targets/edit", handler.UpdateCategoryTargets)
 	// http.HandleFunc("/tags", handler.GetTags)
 	// http.HandleFunc("/tags/edit", handler.UpdateTags)
 
@@ -79,6 +81,8 @@ func runServer(port int) {
 	http.HandleFunc("/expense/edit", handler.EditExpense)               // PUT for edit
 	http.HandleFunc("/expense/delete", handler.DeleteExpense)           // DELETE for single
 	http.HandleFunc("/expenses/delete", handler.DeleteMultipleExpenses) // DELETE for multiple
+	http.HandleFunc("/receipt/upload", handler.UploadReceipt)
+	http.HandleFunc("/receipts/", handler.ServeReceipt)
 
 	// Recurring Expenses
 	http.HandleFunc("/recurring-expense", handler.AddRecurringExpense)           // PUT for add

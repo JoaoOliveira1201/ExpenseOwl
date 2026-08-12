@@ -22,6 +22,8 @@ type Storage interface {
 	UpdateCurrency(currency string) error
 	GetStartDate() (int, error)
 	UpdateStartDate(startDate int) error
+	GetCategoryTargets() (map[string]float64, error)
+	UpdateCategoryTargets(targets map[string]float64) error
 
 	// Recurring Expenses
 	GetRecurringExpenses() ([]RecurringExpense, error)
@@ -49,6 +51,7 @@ type Config struct {
 	Categories        []string           `json:"categories"`
 	Currency          string             `json:"currency"`
 	StartDate         int                `json:"startDate"`
+	CategoryTargets   map[string]float64 `json:"categoryTargets"`
 	RecurringExpenses []RecurringExpense `json:"recurringExpenses"`
 	// Tags              []string           `json:"tags"`
 }
@@ -64,6 +67,7 @@ type RecurringExpense struct {
 	Interval    string    `json:"interval"`
 	Occurrences int       `json:"occurrences"`
 	Owner       string    `json:"owner"`
+	Notes       string    `json:"notes"`
 }
 
 type BackendType string
@@ -93,12 +97,15 @@ type Expense struct {
 	Currency    string    `json:"currency"`
 	Date        time.Time `json:"date"`
 	Owner       string    `json:"owner"`
+	Notes       string    `json:"notes"`
+	Receipt     string    `json:"receipt"`
 }
 
 func (c *Config) SetBaseConfig() {
 	c.Categories = defaultCategories
 	c.Currency = "usd"
 	c.StartDate = 1
+	c.CategoryTargets = map[string]float64{}
 	// c.Tags = []string{}
 	c.RecurringExpenses = []RecurringExpense{}
 }
@@ -171,6 +178,13 @@ func ValidateCategory(category string) (string, error) {
 
 func (e *Expense) Validate() error {
 	e.Name = SanitizeString(e.Name)
+	e.Notes = SanitizeNotes(e.Notes)
+	if len(e.Notes) > 2000 {
+		return fmt.Errorf("expense notes cannot exceed 2000 characters")
+	}
+	if e.Receipt != "" && (!strings.HasPrefix(e.Receipt, "/receipts/") || strings.Contains(strings.TrimPrefix(e.Receipt, "/receipts/"), "/")) {
+		return fmt.Errorf("invalid receipt reference")
+	}
 	if e.Name == "" {
 		return fmt.Errorf("expense 'name' cannot be empty")
 	}
@@ -201,6 +215,10 @@ func (e *Expense) Validate() error {
 
 func (e *RecurringExpense) Validate() error {
 	e.Name = SanitizeString(e.Name)
+	e.Notes = SanitizeNotes(e.Notes)
+	if len(e.Notes) > 2000 {
+		return fmt.Errorf("recurring expense notes cannot exceed 2000 characters")
+	}
 	if e.Name == "" {
 		return fmt.Errorf("recurring expense 'name' cannot be empty")
 	}
@@ -233,6 +251,16 @@ func (e *RecurringExpense) Validate() error {
 		return fmt.Errorf("invalid interval: '%s'. Must be one of 'daily', 'weekly', 'monthly', or 'yearly'", e.Interval)
 	}
 	return nil
+}
+
+// SanitizeNotes keeps line breaks while applying the same conservative
+// character policy used by transaction names and tags.
+func SanitizeNotes(notes string) string {
+	lines := strings.Split(notes, "\n")
+	for i, line := range lines {
+		lines[i] = SanitizeString(line)
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 // variables

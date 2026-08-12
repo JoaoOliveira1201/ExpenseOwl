@@ -127,7 +127,11 @@ func (s *jsonStore) Close() error {
 func (s *jsonStore) GetConfig() (*Config, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.readConfigFile(s.configPath)
+	config, err := s.readConfigFile(s.configPath)
+	if err == nil && config.CategoryTargets == nil {
+		config.CategoryTargets = map[string]float64{}
+	}
+	return config, err
 }
 
 // Basic Config Updates
@@ -194,6 +198,25 @@ func (s *jsonStore) UpdateStartDate(startDate int) error {
 	}
 	data.StartDate = startDate
 	s.defaults["start_date"] = fmt.Sprintf("%d", startDate)
+	return s.writeConfigFile(s.configPath, data)
+}
+
+func (s *jsonStore) GetCategoryTargets() (map[string]float64, error) {
+	config, err := s.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return config.CategoryTargets, nil
+}
+
+func (s *jsonStore) UpdateCategoryTargets(targets map[string]float64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, err := s.readConfigFile(s.configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config file: %v", err)
+	}
+	data.CategoryTargets = targets
 	return s.writeConfigFile(s.configPath, data)
 }
 

@@ -3,24 +3,38 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tanq16/expenseowl/internal/storage"
 	"github.com/tanq16/expenseowl/internal/web"
 )
 
 // Handler holds the storage interface
 type Handler struct {
-	storage storage.Storage
+	storage    storage.Storage
+	receiptDir string
 }
 
 // NewHandler creates a new API handler
 func NewHandler(s storage.Storage) *Handler {
+	receiptDir := os.Getenv("RECEIPT_DIR")
+	if receiptDir == "" {
+		receiptDir = filepath.Join("data", "receipts")
+	}
+	if err := os.MkdirAll(receiptDir, 0755); err != nil {
+		log.Printf("WARNING: Failed to create receipt directory: %v", err)
+	}
 	return &Handler{
-		storage: s,
+		storage:    s,
+		receiptDir: receiptDir,
 	}
 }
 
@@ -162,6 +176,59 @@ func (h *Handler) UpdateStartDate(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
+func (h *Handler) GetCategoryTargets(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+	targets, err := h.storage.GetCategoryTargets()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to get category targets"})
+		return
+	}
+	writeJSON(w, http.StatusOK, targets)
+}
+
+func (h *Handler) UpdateCategoryTargets(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+	var targets map[string]float64
+	if err := json.NewDecoder(r.Body).Decode(&targets); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
+		return
+	}
+	categories, err := h.storage.GetCategories()
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to validate category targets"})
+		return
+	}
+	validCategories := make(map[string]bool, len(categories))
+	for _, category := range categories {
+		validCategories[category] = true
+	}
+	cleanTargets := make(map[string]float64)
+	for category, amount := range targets {
+		if !validCategories[category] {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: fmt.Sprintf("Unknown category: %s", category)})
+			return
+		}
+		if amount < 0 || amount > 9000000000000000 {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: fmt.Sprintf("Invalid target for %s", category)})
+			return
+		}
+		if amount > 0 {
+			cleanTargets[category] = amount
+		}
+	}
+	if err := h.storage.UpdateCategoryTargets(cleanTargets); err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to update category targets"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
 // ------------------------------------------------------------
 // Expense Handlers
 // ------------------------------------------------------------
@@ -224,10 +291,14 @@ func (h *Handler) EditExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: err.Error()})
 		return
 	}
+	previous, _ := h.storage.GetExpense(id)
 	if err := h.storage.UpdateExpense(id, expense); err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to edit expense"})
 		log.Printf("API ERROR: Failed to edit expense: %v\n", err)
 		return
+	}
+	if previous.Receipt != "" && previous.Receipt != expense.Receipt {
+		h.removeReceipt(previous.Receipt)
 	}
 	writeJSON(w, http.StatusOK, expense)
 }
@@ -242,11 +313,13 @@ func (h *Handler) DeleteExpense(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "ID parameter is required"})
 		return
 	}
+	expense, _ := h.storage.GetExpense(id)
 	if err := h.storage.RemoveExpense(id); err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to delete expense"})
 		log.Printf("API ERROR: Failed to delete expense: %v\n", err)
 		return
 	}
+	h.removeReceipt(expense.Receipt)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
@@ -262,12 +335,88 @@ func (h *Handler) DeleteMultipleExpenses(w http.ResponseWriter, r *http.Request)
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Invalid request body"})
 		return
 	}
+	receipts := make([]string, 0, len(payload.IDs))
+	for _, id := range payload.IDs {
+		if expense, err := h.storage.GetExpense(id); err == nil && expense.Receipt != "" {
+			receipts = append(receipts, expense.Receipt)
+		}
+	}
 	if err := h.storage.RemoveMultipleExpenses(payload.IDs); err != nil {
 		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to delete multiple expenses"})
 		log.Printf("API ERROR: Failed to delete multiple expenses: %v\n", err)
 		return
 	}
+	for _, receipt := range receipts {
+		h.removeReceipt(receipt)
+	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
+// UploadReceipt stores a private, locally hosted receipt attachment and returns
+// the reference that can be included in an expense payload.
+func (h *Handler) UploadReceipt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
+	file, _, err := r.FormFile("receipt")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Choose a receipt image or PDF up to 5 MB"})
+		return
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, (5<<20)+1))
+	if err != nil || len(data) == 0 || len(data) > 5<<20 {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Receipt must be between 1 byte and 5 MB"})
+		return
+	}
+	mimeType := http.DetectContentType(data)
+	extensions := map[string]string{
+		"image/jpeg":      ".jpg",
+		"image/png":       ".png",
+		"image/webp":      ".webp",
+		"application/pdf": ".pdf",
+	}
+	ext, ok := extensions[mimeType]
+	if !ok {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Receipt must be a JPG, PNG, WebP, or PDF"})
+		return
+	}
+	if err := os.MkdirAll(h.receiptDir, 0755); err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Receipt storage is unavailable"})
+		return
+	}
+	name := uuid.New().String() + ext
+	if err := os.WriteFile(filepath.Join(h.receiptDir, name), data, 0644); err != nil {
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to store receipt"})
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"receipt": "/receipts/" + name})
+}
+
+func (h *Handler) ServeReceipt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+		return
+	}
+	name := strings.TrimPrefix(r.URL.Path, "/receipts/")
+	if name == "" || name != filepath.Base(name) {
+		http.NotFound(w, r)
+		return
+	}
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	http.ServeFile(w, r, filepath.Join(h.receiptDir, name))
+}
+
+func (h *Handler) removeReceipt(reference string) {
+	name := strings.TrimPrefix(reference, "/receipts/")
+	if name == "" || name != filepath.Base(name) {
+		return
+	}
+	if err := os.Remove(filepath.Join(h.receiptDir, name)); err != nil && !os.IsNotExist(err) {
+		log.Printf("WARNING: Failed to remove receipt %s: %v", name, err)
+	}
 }
 
 // ------------------------------------------------------------

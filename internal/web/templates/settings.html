@@ -68,6 +68,19 @@
             </div>
         </div>
 
+		<div class="form-container" id="category-targets">
+			<div class="section-heading">
+				<div>
+					<span class="section-kicker">Optional guardrails</span>
+					<h2>Monthly category targets</h2>
+				</div>
+			</div>
+			<p class="settings-help">Set a soft monthly limit for any category. Leave a value blank to disable its target.</p>
+			<div id="categoryTargetsList" class="target-settings-grid"></div>
+			<button id="saveCategoryTargets" class="nav-button">Save targets</button>
+			<div id="categoryTargetsMessage" class="form-message"></div>
+		</div>
+
         <div class="settings-container">
             <div class="form-container half-width">
                 <h2 align="center">Currency Settings</h2>
@@ -187,6 +200,10 @@
                         <option value="common">Common</option>
                     </select>
                 </div>
+				<div class="form-group form-group-wide">
+					<label for="recurringNotes">Notes</label>
+					<textarea id="recurringNotes" maxlength="2000" rows="2" placeholder="Optional context"></textarea>
+				</div>
                 <button type="submit" class="nav-button">Add Recurring Transaction</button>
             </form>
             <div id="recurringExpenseMessage" class="form-message"></div>
@@ -261,6 +278,10 @@
                         <option value="common">Common</option>
                     </select>
                 </div>
+				<div class="form-group form-group-wide">
+					<label for="editRecurringNotes">Notes</label>
+					<textarea id="editRecurringNotes" maxlength="2000" rows="2" placeholder="Optional context"></textarea>
+				</div>
             </form>
             <div class="modal-buttons">
                 <button class="modal-button" onclick="closeRecurringEditModal()">Cancel</button>
@@ -417,6 +438,37 @@
                 showMessage('categoriesMessage', 'Error saving categories', false);
             }
         }
+
+		function renderCategoryTargets(targets = {}) {
+			const container = document.getElementById('categoryTargetsList');
+			container.innerHTML = categories.map(category => `
+				<label class="target-setting">
+					<span>${escapeHTML(category)}</span>
+					<input type="number" min="0" step="0.01" max="9000000000000000" data-category="${escapeHTML(category)}" value="${targets[category] || ''}" placeholder="No target">
+				</label>`).join('');
+		}
+
+		async function saveCategoryTargets() {
+			const targets = {};
+			document.querySelectorAll('#categoryTargetsList input').forEach(input => {
+				const value = parseFloat(input.value);
+				if (!Number.isNaN(value) && value > 0) targets[input.dataset.category] = value;
+			});
+			try {
+				const response = await fetch('/category-targets/edit', {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(targets)
+				});
+				if (!response.ok) {
+					const result = await response.json();
+					throw new Error(result.error || 'Failed to save targets');
+				}
+				showMessage('categoryTargetsMessage', 'Category targets saved', true);
+			} catch (error) {
+				showMessage('categoryTargetsMessage', error.message, false);
+			}
+		}
         
         // --- Tag Input Component ---
         function createTagInput(inputId, selectedContainerId, dropdownId, selectedTagsSet) {
@@ -609,9 +661,9 @@
                     <tbody>
                         ${recurring.map(r => `
                             <tr>
-                                <td>${r.name}</td>
+								<td>${escapeHTML(r.name)}${r.notes ? `<span class="transaction-note">${escapeHTML(r.notes)}</span>` : ''}</td>
                                 <td>${formatCurrency(r.amount)}</td>
-                                <td>${r.category}</td>
+								<td>${escapeHTML(r.category)}</td>
                                 <td>${r.interval.charAt(0).toUpperCase() + r.interval.slice(1)}</td>
                                 <td>${findNextOccurrence(r)}</td>
                                 <td>
@@ -660,6 +712,7 @@ function showRecurringEditModal(id) {
             document.getElementById('editRecurringStartDate').value = new Date(recurringExpenseToEdit.startDate).toISOString().split('T')[0];
             document.getElementById('editRecurringOccurrences').value = recurringExpenseToEdit.occurrences;
             document.getElementById('editRecurringOwner').value = recurringExpenseToEdit.owner || 'common';
+			document.getElementById('editRecurringNotes').value = recurringExpenseToEdit.notes || '';
             editFormSelectedTags = new Set(recurringExpenseToEdit.tags || []);
             createTagInput('edit-tags-input', 'edit-selected-tags', 'edit-tags-dropdown', editFormSelectedTags).renderSelected();
             document.getElementById('editRecurringModal').classList.add('active');
@@ -686,7 +739,8 @@ function showRecurringEditModal(id) {
                 interval: document.getElementById('editRecurringInterval').value,
                 startDate: new Date(document.getElementById('editRecurringStartDate').value).toISOString(),
                 occurrences: parseInt(document.getElementById('editRecurringOccurrences').value, 10),
-                owner: document.getElementById('editRecurringOwner').value
+				owner: document.getElementById('editRecurringOwner').value,
+				notes: document.getElementById('editRecurringNotes').value
             };
             
             try {
@@ -817,6 +871,7 @@ function showRecurringEditModal(id) {
                 (recurringExpenses || []).forEach(exp => (exp.tags || []).forEach(tag => allTags.add(tag)));
 
                 renderCategories();
+				renderCategoryTargets(config.categoryTargets || {});
                 populateCurrencySelect();
                 populateStartDateInput();
                 document.getElementById('recurringCategory').innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -859,6 +914,7 @@ function showRecurringEditModal(id) {
         // --- Event Listeners ---
         document.getElementById('addCategory').addEventListener('click', addCategory);
         document.getElementById('saveCategories').addEventListener('click', saveCategories);
+		document.getElementById('saveCategoryTargets').addEventListener('click', saveCategoryTargets);
         document.getElementById('saveCurrency').addEventListener('click', saveCurrency);
         document.getElementById('saveStartDate').addEventListener('click', saveStartDate);
         document.getElementById('csv-import-file').addEventListener('change', handleCsvImport);
@@ -879,7 +935,8 @@ function showRecurringEditModal(id) {
                 interval: document.getElementById('recurringInterval').value,
                 startDate: getISODateWithLocalTime(document.getElementById('recurringStartDate').value),
                 occurrences: parseInt(document.getElementById('recurringOccurrences').value, 10),
-                owner: document.getElementById('recurringOwner').value
+				owner: document.getElementById('recurringOwner').value,
+				notes: document.getElementById('recurringNotes').value
             };
 
             try {

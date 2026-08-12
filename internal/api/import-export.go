@@ -31,7 +31,7 @@ func (h *Handler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 	defer writer.Flush()
 
 	// Write header
-	headers := []string{"ID", "Name", "Category", "Amount", "Date", "Tags", "Owner"}
+	headers := []string{"ID", "Name", "Category", "Amount", "Date", "Tags", "Owner", "Notes", "Receipt"}
 	if err := writer.Write(headers); err != nil {
 		log.Printf("API ERROR: Failed to write CSV header: %v\n", err)
 		return
@@ -48,6 +48,8 @@ func (h *Handler) ExportCSV(w http.ResponseWriter, r *http.Request) {
 			expense.Date.Format(time.RFC3339),
 			strings.Join(expense.Tags, ","),
 			expense.Owner,
+			expense.Notes,
+			expense.Receipt,
 		}
 		if err := writer.Write(record); err != nil {
 			log.Printf("API ERROR: Failed to write CSV record for expense ID %s: %v\n", expense.ID, err)
@@ -102,6 +104,8 @@ func (h *Handler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 	tagsIdx, tagsExists := colMap["tags"]
 	currencyIdx, currencyExists := colMap["currency"]
 	ownerIdx, ownerExists := colMap["owner"]
+	notesIdx, notesExists := colMap["notes"]
+	receiptIdx, receiptExists := colMap["receipt"]
 
 	currentCategories, err := h.storage.GetCategories()
 	if err != nil {
@@ -186,6 +190,14 @@ func (h *Handler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 				owner = "common"
 			}
 		}
+		notes := ""
+		if notesExists {
+			notes = record[notesIdx]
+		}
+		receipt := ""
+		if receiptExists {
+			receipt = strings.TrimSpace(record[receiptIdx])
+		}
 
 		expense := storage.Expense{
 			Name:     strings.TrimSpace(record[colMap["name"]]),
@@ -195,6 +207,8 @@ func (h *Handler) ImportCSV(w http.ResponseWriter, r *http.Request) {
 			Date:     date,
 			Tags:     tags,
 			Owner:    owner,
+			Notes:    notes,
+			Receipt:  receipt,
 		}
 		if err := expense.Validate(); err != nil {
 			log.Printf("Warning: Skipping row %d due to validation error: %v\n", i+2, err)

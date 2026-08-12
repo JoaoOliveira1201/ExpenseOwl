@@ -847,7 +847,8 @@ header {
 }
 
 .form-group input,
-.form-group select {
+.form-group select,
+.form-group textarea {
     padding: 0.5rem;
     border: 1px solid var(--border);
     border-radius: 4px;
@@ -857,9 +858,231 @@ header {
 }
 
 .form-group input:focus,
-.form-group select:focus {
+.form-group select:focus,
+.form-group textarea:focus {
     outline: none;
     border-color: var(--accent);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 2.6rem;
+    font-family: inherit;
+}
+
+.form-group small {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.form-group-wide {
+    grid-column: span 2;
+}
+
+.dashboard-section {
+    margin: 1rem 0;
+    padding: 1.25rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+}
+
+.section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.section-heading h2 {
+    margin: 0;
+    font-size: 1.2rem;
+}
+
+.section-kicker {
+    display: block;
+    color: var(--accent);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.section-link {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.insights-grid,
+.targets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+}
+
+.insight-card,
+.target-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.insight-card {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-start;
+}
+
+.insight-card > i {
+    width: 1.25rem;
+    color: var(--accent);
+    margin-top: 0.2rem;
+    text-align: center;
+}
+
+.insight-card span {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.insight-card p {
+    margin: 0.25rem 0 0;
+    line-height: 1.4;
+}
+
+.target-line,
+.target-values {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.target-line span {
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+
+.target-track {
+    height: 8px;
+    margin: 0.7rem 0;
+    overflow: hidden;
+    background: var(--border);
+    border-radius: 999px;
+}
+
+.target-track span {
+    display: block;
+    height: 100%;
+    background: #4ECDC4;
+    border-radius: inherit;
+    transition: width 0.35s ease;
+}
+
+.target-card.over-target .target-track span {
+    background: #FF6B6B;
+}
+
+.target-values {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.trend-chart-box {
+    height: 300px;
+}
+
+.receipt-link {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+.transaction-note {
+    display: block;
+    max-width: 32rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    white-space: pre-wrap;
+}
+
+.filter-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.filter-panel .filter-actions {
+    display: flex;
+    align-items: end;
+}
+
+.filter-summary {
+    grid-column: 1 / -1;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    text-align: right;
+}
+
+.settings-help {
+    margin-top: 0;
+    color: var(--text-secondary);
+}
+
+.target-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.target-setting {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.target-setting input {
+    width: 7.5rem;
+    padding: 0.45rem;
+    color: var(--text-primary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .form-group-wide {
+        grid-column: span 1;
+    }
+
+    .dashboard-section {
+        padding: 1rem;
+    }
+
+    .trend-chart-box {
+        height: 240px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .target-track span {
+        transition: none;
+    }
 }
 
 .form-message {

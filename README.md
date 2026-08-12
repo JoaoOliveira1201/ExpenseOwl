@@ -35,6 +35,8 @@ So, I created this project and I use it in my home lab for expenses. The primary
 - Recurring transactions for both income and expenses
 - Custom categories, currency symbols, and start date via app settings
 - Optional tags for further classification
+- Optional transaction notes and locally stored receipt attachments (JPG, PNG, WebP, or PDF)
+- Soft monthly category targets without complex budget rules
 - Beautiful interface with both light and dark themes
 - Self-contained binary and container image to ensure no internet interaction
 - Multi-architecture Docker container with support for persistent storage
@@ -46,9 +48,10 @@ So, I created this project and I use it in my home lab for expenses. The primary
     - Click on a category to exclude it from the pie chart; click again to add it back
     - Visualize the month's breakdown without considering some categories like Rent
     - Cashflow shows total income, total expenses, and balance (red or green based on +ve or -ve)
+	- Review a 12-month income/spending trend, target progress, and locally calculated monthly insights
 2. Table view for detailed expense listing
     - View monthly or all expenses chronologically and delete them (hold shift to skip confirm)
-    - Use the browser to search for a name or tags if needed
+	- Filter by search text, category, tag, type, date range, and amount range
     - Tags show up if at least one transaction uses it; 
 3. Settings page for configurations and additional features
     - Reorder, add, or remove custom categories
@@ -184,7 +187,10 @@ With the exception of [Data backends](#data-backends), all configuration of Expe
   - Recurring transactions will be listed at the bottom of the page and can be edited/removed (all or future only transactions)
   - Recurring transactions allow similar options as normal expenses - category, tags, amount, name
 - Theme Settings: supports light and dark theme, with default behavior to adapt to system
+- Category Targets: optional soft monthly limits displayed on the dashboard
 - Import/Export Data: covered under [Data Import/Export](#data-importexport)
+
+Receipt attachments are stored in `data/receipts` by default. Set `RECEIPT_DIR` to use another path. Keep this directory on persistent storage when running a container.
 
 ### Data Backends
 

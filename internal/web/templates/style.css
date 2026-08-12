@@ -123,7 +123,7 @@ h3 { font-size: 18px; }
 .allocation-card { display: grid; grid-template-columns: repeat(3, 1fr); min-height: 58px; overflow: hidden; background: var(--line-soft); }
 .allocation-part { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 18px; background: var(--paper); }
 .allocation-part + .allocation-part { border-left: 1px solid var(--line-soft); }
-.allocation-part svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.allocation-label { font: 750 10px/1 var(--utility); letter-spacing: .1em; text-transform: uppercase; }
 .allocation-part strong { font: 700 clamp(17px, 2vw, 22px)/1 var(--utility); letter-spacing: -.04em; }
 .allocation-part.essentials { color: var(--sage-dark); background: linear-gradient(110deg, var(--sage-wash), var(--paper) 74%); }
 .allocation-part.lifestyle { color: var(--lilac); }
@@ -227,8 +227,8 @@ td.amount.cost { color: var(--berry); }
     .owner-rail { display: grid; grid-template-columns: repeat(3, 1fr); }
     .metric { min-height: 66px; align-items: flex-start; justify-content: center; flex-direction: column; gap: 7px; padding: 11px 10px; }
     .metric-value { font-size: clamp(14px, 4vw, 17px); }
-    .allocation-part { gap: 7px; padding: 10px 8px; }
-    .allocation-part svg { width: 20px; height: 20px; }
+    .allocation-part { align-items: flex-start; flex-direction: column; gap: 6px; padding: 11px 10px; }
+    .allocation-label { font-size: 8px; letter-spacing: .06em; }
     .allocation-part strong { font-size: 16px; }
     .field, .field.wide { grid-column: 1 / -1; }
     .filter-panel, .signal-grid { grid-template-columns: 1fr; }

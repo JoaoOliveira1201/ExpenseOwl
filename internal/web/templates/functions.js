@@ -35,6 +35,10 @@ const ExpenseOwl = (() => {
         localStorage.setItem('expenseowl_owner', owner);
     }
 
+    function ownerLabel(owner) {
+        return { joao: 'João', maria: 'Maria', common: 'Together' }[owner] || 'Together';
+    }
+
     function bindOwnerRail(element, onChange) {
         let owner = savedOwner();
         const render = () => element.querySelectorAll('[data-owner]').forEach(button => {
@@ -100,5 +104,5 @@ const ExpenseOwl = (() => {
         return result.receipt;
     }
 
-    return { euro, monthLabel, monthBounds, inMonth, ownerExpenses, savedOwner, bindOwnerRail, request, json, localDateISO, dateInputToISO, dateTime, escape, setMessage, uploadReceipt };
+    return { euro, monthLabel, monthBounds, inMonth, ownerExpenses, savedOwner, ownerLabel, bindOwnerRail, request, json, localDateISO, dateInputToISO, dateTime, escape, setMessage, uploadReceipt };
 })();

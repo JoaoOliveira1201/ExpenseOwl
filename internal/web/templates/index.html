@@ -2,23 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <meta name="theme-color" content="#090d12"><meta name="description" content="A focused monthly expense ledger">
-    <link rel="manifest" href="/manifest.webmanifest?v=20260812b"><link rel="icon" href="/favicon.ico"><link rel="stylesheet" href="/style.css?v=20260812b">
-    <script defer src="/chart.min.js?v=20260812b"></script><script defer src="/functions.js?v=20260812b"></script><script defer src="/dashboard.js?v=20260812b"></script><script defer src="/pwa.js?v=20260812b"></script>
-    <title>Ledger · ExpenseOwl</title>
+    <meta name="theme-color" content="#e8eee8"><meta name="description" content="A shared home ledger for the two of us">
+    <link rel="manifest" href="/manifest.webmanifest?v=20260812d"><link rel="icon" type="image/png" href="/pwa/household-1254.png"><link rel="stylesheet" href="/style.css?v=20260812d">
+    <script defer src="/chart.min.js?v=20260812d"></script><script defer src="/functions.js?v=20260812d"></script><script defer src="/dashboard.js?v=20260812d"></script><script defer src="/pwa.js?v=20260812d"></script>
+    <title>This month · ExpenseOwl</title>
 </head>
 <body>
     <header class="site-header"><div class="header-inner">
-        <a class="brand" href="/"><img src="/pwa/icon-192.png" alt=""><span>ExpenseOwl</span><small>Ledger</small></a>
-        <nav class="nav" aria-label="Primary"><a class="active" href="/">Overview</a><a href="/table">Transactions</a><a href="/signals">Signals</a><a href="/settings">Manage</a></nav>
+        <a class="brand" href="/" aria-label="ExpenseOwl home"><span class="brand-mark" aria-hidden="true"><span></span></span><span class="brand-copy"><strong>ExpenseOwl</strong><small>our home ledger</small></span></a>
+        <nav class="nav" aria-label="Primary"><a class="active" href="/">This month</a><a href="/table">The ledger</a><a href="/signals">Patterns</a><a href="/settings">Our setup</a></nav>
     </div></header>
     <main class="shell">
         <div class="page-heading overview-heading">
-            <div class="month-rail" aria-label="Choose month"><button id="prevMonth" aria-label="Previous month">‹</button><div class="month-label"><span>Statement period</span><strong id="currentMonth"></strong></div><button id="nextMonth" aria-label="Next month">›</button></div>
+            <div class="overview-intro"><span class="eyebrow">Our month at home</span><h1>How are we doing?</h1><div class="together-note"><span class="tiny-portraits" aria-hidden="true"><span class="tiny-portrait">J</span><span class="tiny-portrait">M</span></span><span>A shared view for João &amp; Maria</span></div></div>
+            <div class="month-rail" aria-label="Choose month"><button id="prevMonth" aria-label="Previous month">‹</button><div class="month-label"><span>Month on the table</span><strong id="currentMonth"></strong></div><button id="nextMonth" aria-label="Next month">›</button></div>
         </div>
         <div class="toolbar">
-            <div class="owner-rail" id="ownerRail" aria-label="Owner view"><button data-owner="joao">João</button><button data-owner="maria">Maria</button><button data-owner="common">Household</button></div>
-            <div class="action-pair"><button class="button primary" id="addExpense">＋ Add transaction</button><button class="button compact income-action" id="addIncome">＋ Add income</button></div>
+            <div class="owner-rail" id="ownerRail" aria-label="Whose spending to show"><button data-owner="joao">João</button><button data-owner="maria">Maria</button><button data-owner="common">Together</button></div>
+            <div class="action-pair"><button class="button primary" id="addExpense">＋ Add spending</button><button class="button compact income-action" id="addIncome">＋ Add income</button></div>
         </div>
         <section class="drawer panel" id="transactionDrawer" aria-label="Add transaction">
             <div class="panel-header"><div><span class="eyebrow" id="entryKind">New expense</span><h2 id="entryTitle">Record a transaction</h2></div><button class="icon-button" id="closeForm" aria-label="Close">×</button></div>
@@ -40,10 +41,10 @@
             </form>
         </section>
         <div class="dashboard-grid">
-            <section class="panel chart-panel"><div class="panel-header"><div><span class="eyebrow">Outgoings</span><h2>Category share</h2></div></div><div id="chartContent"><div class="chart-wrap"><canvas id="categoryChart"></canvas></div><div class="legend" id="categoryLegend"></div></div><div class="empty" id="chartEmpty" hidden>No spending recorded for this view.</div></section>
-            <section class="panel cashflow" aria-label="Cashflow"><div class="metric income"><span class="metric-label">Income</span><div class="metric-value" id="income">€0.00</div></div><div class="metric spending"><span class="metric-label">Spent</span><div class="metric-value" id="spending">€0.00</div></div><div class="metric balance"><span class="metric-label">Balance</span><div class="metric-value" id="balance">€0.00</div></div></section>
+            <section class="panel cashflow" aria-label="Cashflow"><div class="metric income"><span class="metric-label">Came in</span><div class="metric-value" id="income">€0.00</div></div><div class="metric spending"><span class="metric-label">Went out</span><div class="metric-value" id="spending">€0.00</div></div><div class="metric balance"><span class="metric-label">Left over</span><div class="metric-value" id="balance">€0.00</div></div></section>
+            <section class="panel chart-panel"><div class="panel-header"><div><span class="eyebrow">Around the house</span><h2>Where it went</h2></div></div><div class="chart-content-grid" id="chartContent"><div class="chart-wrap"><canvas id="categoryChart"></canvas></div><div class="legend" id="categoryLegend"></div></div><div class="empty" id="chartEmpty" hidden>No spending recorded for this view.</div></section>
         </div>
-        <section class="section panel" id="targetsSection" hidden><div class="panel-header"><div><span class="eyebrow">Soft limits</span><h2>Category targets</h2></div><a href="/settings#targets">Adjust</a></div><div class="panel-body target-grid" id="targetsGrid"></div></section>
+        <section class="section panel" id="targetsSection" hidden><div class="panel-header"><div><span class="eyebrow">Plans we made</span><h2>Monthly promises</h2></div><a href="/settings#targets">Tend to these</a></div><div class="panel-body target-grid" id="targetsGrid"></div></section>
     </main>
-    <nav class="mobile-nav" aria-label="Primary"><a class="active" href="/">Overview</a><a href="/table">Transactions</a><a href="/signals">Signals</a><a href="/settings">Manage</a></nav>
+    <nav class="mobile-nav" aria-label="Primary"><a class="active" href="/">This month</a><a href="/table">Ledger</a><a href="/signals">Patterns</a><a href="/settings">Our setup</a></nav>
 </body></html>

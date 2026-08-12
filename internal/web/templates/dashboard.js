@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const E = ExpenseOwl;
-    const palette = ['#d7b46a','#76c7b7','#75a9d6','#e47c74','#9a8ec7','#d3996d','#72b88a','#c47f9b','#8ea7b9','#b8ad79'];
+    const palette = ['#758c77','#a44859','#627f8b','#9185a4','#bb716d','#607b6e','#ad6f8e','#82735f','#8292aa','#708c99'];
     let date = new Date();
     let expenses = [];
     let config = { categories: [], categoryTargets: {} };
@@ -80,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('chartContent').hidden = allCategories.length === 0;
         document.getElementById('chartEmpty').hidden = allCategories.length > 0;
         if (pieChart) pieChart.destroy();
-        if (breakdown.length) pieChart = new Chart(document.getElementById('categoryChart'), { type: 'doughnut', data: { labels: breakdown.map(item => item[0]), datasets: [{ data: breakdown.map(item => item[1]), backgroundColor: breakdown.map(item => categoryColor(item[0])), borderColor: '#111821', borderWidth: 3 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '66%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${E.euro(context.raw)}` } } } } });
+        if (breakdown.length) pieChart = new Chart(document.getElementById('categoryChart'), { type: 'doughnut', data: { labels: breakdown.map(item => item[0]), datasets: [{ data: breakdown.map(item => item[1]), backgroundColor: breakdown.map(item => categoryColor(item[0])), borderColor: '#fffdf8', borderWidth: 4 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '68%', plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${E.euro(context.raw)}` } } } } });
         const totals = new Map(breakdown);
         const grandTotal = breakdown.reduce((sum, item) => sum + item[1], 0);
         document.getElementById('categoryLegend').innerHTML = allCategories.sort((a, b) => (totals.get(b) || 0) - (totals.get(a) || 0)).map(category => `<button class="legend-row ${disabled.has(category) ? 'disabled' : ''}" data-category="${E.escape(category)}"><span class="swatch" style="background:${categoryColor(category)}"></span><span>${E.escape(category)}</span><span class="money">${totals.has(category) ? E.euro(totals.get(category)) : 'Excluded'}</span></button>`).join('') + (allCategories.length ? `<div class="legend-row"><span></span><strong>Total</strong><strong class="money">${E.euro(grandTotal)}</strong></div>` : '');
@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             [config] = await Promise.all([E.request('/config'), loadExpenses()]);
             document.getElementById('category').innerHTML = config.categories.map(category => `<option>${E.escape(category)}</option>`).join('');
-            Chart.defaults.color = '#92a0ae'; Chart.defaults.borderColor = '#2b3642'; Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+            Chart.defaults.color = '#51615a'; Chart.defaults.borderColor = '#dfe5de'; Chart.defaults.font.family = 'Avenir Next, Segoe UI, system-ui, sans-serif';
             render();
         } catch (error) { document.getElementById('chartEmpty').hidden = false; document.getElementById('chartEmpty').textContent = error.message; }
     })();

@@ -1,6 +1,6 @@
 # ExpenseOwl
 
-ExpenseOwl is a focused, self-hosted monthly expense ledger. It runs as a small Go application backed exclusively by PostgreSQL and ships with a dark, responsive interface.
+ExpenseOwl is a focused, self-hosted monthly expense ledger. It runs as a small Go application backed exclusively by PostgreSQL and ships with a cozy, responsive interface.
 
 ## Features
 
@@ -12,7 +12,7 @@ ExpenseOwl is a focused, self-hosted monthly expense ledger. It runs as a small 
 - Custom categories and recurring transactions
 - Installable PWA with no third-party runtime requests
 
-ExpenseOwl deliberately uses fixed conventions: dark appearance, euro (`EUR`) currency, and calendar months beginning on day 1.
+ExpenseOwl deliberately uses fixed conventions: a cozy light appearance, euro (`EUR`) currency, and calendar months beginning on day 1.
 
 ## Run with Docker Compose
 

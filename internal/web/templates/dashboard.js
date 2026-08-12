@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
     const E = ExpenseOwl;
-    const palette = ['#0072B2','#E69F00','#009E73','#CC79A7','#D55E00','#56B4E9','#F0E442','#332288','#44AA99','#AA4499','#88CCEE','#EE7733'];
+    const palette = ['#E41A1C','#377EB8','#4DAF4A','#FF7F00','#984EA3','#FFD92F','#A65628','#F781BF','#00A6A6','#8C8C00','#1B3A8A','#FF6F61','#7CB518','#C51B7D','#00BFC4','#8B1E3F','#B39DDB','#006D2C','#D4A017','#666666'];
     let date = new Date();
     let expenses = [];
     let config = { categories: [], categoryTargets: {} };

@@ -19,7 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCategories() {
-        categoryList.innerHTML = categories.map((category, index) => `<div class="category-row category-target-row" data-index="${index}"><input class="category-name" value="${E.escape(category)}" aria-label="Category name"><label class="category-parent-field"><span>Parent category</span><select class="category-parent" aria-label="Parent category for ${E.escape(category)}"><option value="essentials" ${categoryParents[category] !== 'lifestyle' ? 'selected' : ''}>Essentials</option><option value="lifestyle" ${categoryParents[category] === 'lifestyle' ? 'selected' : ''}>Lifestyle</option></select></label><label class="target-input"><span>Monthly target</span><input class="category-target" type="number" min="0" step=".01" placeholder="No target" value="${categoryTargets[category] ?? ''}" aria-label="Monthly target for ${E.escape(category)}"></label><div class="category-actions"><button class="icon-button up" ${index === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button class="icon-button down" ${index === categories.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button><button class="icon-button remove" aria-label="Remove">×</button></div></div>`).join('');
+        categoryList.innerHTML = categories.map((category, index) => `<div class="category-row category-target-row" data-index="${index}"><input class="category-name" value="${E.escape(category)}" aria-label="Category name"><label class="category-parent-field"><span>Parent category</span><select class="category-parent" aria-label="Parent category for ${E.escape(category)}"><option value="essentials" ${categoryParents[category] !== 'lifestyle' ? 'selected' : ''}>Essentials</option><option value="lifestyle" ${categoryParents[category] === 'lifestyle' ? 'selected' : ''}>Lifestyle</option></select></label><label class="target-input"><span>Monthly target</span><input class="category-target" type="number" min="0" step=".01" placeholder="No target" value="${categoryTargets[category] ?? ''}" aria-label="Monthly target for ${E.escape(category)}"></label><div class="category-actions"><button type="button" class="icon-button up" ${index === 0 ? 'disabled' : ''} aria-label="Move up">↑</button><button type="button" class="icon-button down" ${index === categories.length - 1 ? 'disabled' : ''} aria-label="Move down">↓</button><button type="button" class="icon-button remove" aria-label="Remove">×</button></div></div>`).join('');
         const options = categories.map(category => `<option>${E.escape(category)}</option>`).join('');
         const select = document.getElementById('recurringCategory');
         const selected = select.value;
@@ -45,11 +45,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     categoryList.addEventListener('click', event => {
-        const row = event.target.closest('[data-index]'); if (!row) return;
+        const action = event.target.closest('.category-actions button');
+        if (!action) return;
+        const row = action.closest('[data-index]'); if (!row) return;
         syncCategories(); const index = Number(row.dataset.index);
-        if (event.target.closest('.remove')) categories.splice(index, 1);
-        if (event.target.closest('.up') && index > 0) [categories[index - 1], categories[index]] = [categories[index], categories[index - 1]];
-        if (event.target.closest('.down') && index < categories.length - 1) [categories[index + 1], categories[index]] = [categories[index], categories[index + 1]];
+        if (action.classList.contains('remove')) categories.splice(index, 1);
+        if (action.classList.contains('up') && index > 0) [categories[index - 1], categories[index]] = [categories[index], categories[index - 1]];
+        if (action.classList.contains('down') && index < categories.length - 1) [categories[index + 1], categories[index]] = [categories[index], categories[index + 1]];
         renderCategories();
     });
     document.getElementById('addCategory').addEventListener('click', () => { syncCategories(); const input = document.getElementById('newCategory'); const category = input.value.trim(); if (category && category.toLowerCase() !== 'income') { categories.push(category); categoryParents[category] = 'essentials'; } else if (category) { E.setMessage(document.getElementById('setupMessage'), 'Income is a transaction type, not a category.', 'error'); } input.value = ''; renderCategories(); });

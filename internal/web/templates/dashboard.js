@@ -74,16 +74,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return palette[hash % palette.length];
     }
 
+    function chartColors(categories) {
+        return new Map(categories.map((category, index) => [
+            category,
+            palette[index] || `hsl(${(index * 137.508) % 360} 62% 44%)`
+        ]));
+    }
+
     function renderPie(current) {
         const allCategories = [...new Set(current.filter(item => item.amount < 0).map(item => item.category))];
         const breakdown = categoryBreakdown(current);
+        const colors = chartColors(allCategories.sort());
+        const colorFor = category => colors.get(category) || categoryColor(category);
         document.getElementById('chartContent').hidden = allCategories.length === 0;
         document.getElementById('chartEmpty').hidden = allCategories.length > 0;
         if (pieChart) pieChart.destroy();
-        if (breakdown.length) pieChart = new Chart(document.getElementById('categoryChart'), { type: 'pie', data: { labels: breakdown.map(item => item[0]), datasets: [{ data: breakdown.map(item => item[1]), backgroundColor: breakdown.map(item => categoryColor(item[0])), borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${E.euro(context.raw)}` } } } } });
+        if (breakdown.length) pieChart = new Chart(document.getElementById('categoryChart'), { type: 'pie', data: { labels: breakdown.map(item => item[0]), datasets: [{ data: breakdown.map(item => item[1]), backgroundColor: breakdown.map(item => colorFor(item[0])), borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: context => `${context.label}: ${E.euro(context.raw)}` } } } } });
         const totals = new Map(breakdown);
         const grandTotal = breakdown.reduce((sum, item) => sum + item[1], 0);
-        document.getElementById('categoryLegend').innerHTML = allCategories.sort((a, b) => (totals.get(b) || 0) - (totals.get(a) || 0)).map(category => `<button class="legend-row ${disabled.has(category) ? 'disabled' : ''}" data-category="${E.escape(category)}"><span class="swatch" style="background:${categoryColor(category)}"></span><span>${E.escape(category)}</span><span class="money">${totals.has(category) ? E.euro(totals.get(category)) : 'Excluded'}</span></button>`).join('') + (allCategories.length ? `<div class="legend-row"><span></span><strong>Total</strong><strong class="money">${E.euro(grandTotal)}</strong></div>` : '');
+        document.getElementById('categoryLegend').innerHTML = allCategories.sort((a, b) => (totals.get(b) || 0) - (totals.get(a) || 0)).map(category => `<button class="legend-row ${disabled.has(category) ? 'disabled' : ''}" data-category="${E.escape(category)}"><span class="swatch" style="background:${colorFor(category)}"></span><span>${E.escape(category)}</span><span class="money">${totals.has(category) ? E.euro(totals.get(category)) : 'Excluded'}</span></button>`).join('') + (allCategories.length ? `<div class="legend-row"><span></span><strong>Total</strong><strong class="money">${E.euro(grandTotal)}</strong></div>` : '');
     }
 
     document.getElementById('categoryLegend').addEventListener('click', event => {

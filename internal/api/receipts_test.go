@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func receiptRequest(t *testing.T, name string, data []byte) *http.Request {
@@ -30,23 +29,6 @@ func receiptRequest(t *testing.T, name string, data []byte) *http.Request {
 	request := httptest.NewRequest(http.MethodPost, "/receipt/upload", &body)
 	request.Header.Set("Content-Type", writer.FormDataContentType())
 	return request
-}
-
-func TestParseCSVIgnoresRemovedColumns(t *testing.T) {
-	csv := "ID,Name,Category,Amount,Date,Tags,Currency,Owner,Notes\nabc,Lunch,Food,-12.50,2026-08-01,work,usd,joao,Team lunch\n"
-	expenses, categories, total, skipped, err := parseCSV(strings.NewReader(csv), []string{"Food"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if total != 1 || skipped != 0 || len(expenses) != 1 || len(categories) != 1 {
-		t.Fatalf("unexpected import result: total=%d skipped=%d expenses=%#v categories=%#v", total, skipped, expenses, categories)
-	}
-	if expenses[0].ID != "abc" || expenses[0].Owner != "joao" || expenses[0].Amount != -12.5 {
-		t.Fatalf("unexpected expense: %#v", expenses[0])
-	}
-	if !expenses[0].Date.Equal(time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)) {
-		t.Fatalf("unexpected date: %v", expenses[0].Date)
-	}
 }
 
 func TestUploadAndServeReceipt(t *testing.T) {

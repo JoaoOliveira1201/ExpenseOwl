@@ -3,12 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
     let date = new Date();
     let expenses = [];
     let config = { categoryTargets: {} };
+    let trendChart;
     let getOwner = E.bindOwnerRail(document.getElementById('ownerRail'), render);
     document.getElementById('prevMonth').addEventListener('click', () => move(-1));
     document.getElementById('nextMonth').addEventListener('click', () => move(1));
 
     async function move(offset) { date = new Date(date.getFullYear(), date.getMonth() + offset, 15); await load(); render(); }
-    async function load() { const from = new Date(date.getFullYear(), date.getMonth() - 6, 1); const to = new Date(date.getFullYear(), date.getMonth() + 1, 1); expenses = await E.request(`/expenses?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`); }
+    async function load() { const from = new Date(date.getFullYear(), date.getMonth() - 11, 1); const to = new Date(date.getFullYear(), date.getMonth() + 1, 1); expenses = await E.request(`/expenses?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`); }
     const ownerData = () => E.ownerExpenses(expenses, getOwner());
     const forMonth = month => ownerData().filter(item => E.inMonth(item, month));
     const spending = items => items.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0);
@@ -38,6 +39,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         document.getElementById('signals').innerHTML = cards.map(card => `<article class="signal-card"><span class="eyebrow">${E.escape(card.label)}</span><h2 class="signal-number">${E.escape(card.value)}</h2><p>${E.escape(card.text)}</p></article>`).join('');
         document.getElementById('monthRows').innerHTML = Array.from({ length: 6 }, (_, index) => new Date(date.getFullYear(), date.getMonth() - index, 15)).map(month => { const amount = spending(forMonth(month)); const width = Math.min(100, average ? amount / Math.max(average, amount) * 100 : 0); return `<div class="category-row"><div><strong>${E.monthLabel(month)}</strong><div class="target-track"><span style="width:${width}%"></span></div></div><span class="money">${E.euro(amount)}</span></div>`; }).join('');
+        renderTrend();
     }
-    (async () => { try { [config] = await Promise.all([E.request('/config'), load()]); render(); } catch (error) { document.getElementById('signals').innerHTML = `<div class="signal-card">${E.escape(error.message)}</div>`; } })();
+
+    function renderTrend() {
+        const periods = Array.from({ length: 12 }, (_, index) => new Date(date.getFullYear(), date.getMonth() - 11 + index, 15));
+        const data = periods.map(period => ({ income: income(forMonth(period)), spending: spending(forMonth(period)) }));
+        if (trendChart) trendChart.destroy();
+        trendChart = new Chart(document.getElementById('trendChart'), { type: 'line', data: { labels: periods.map(period => period.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })), datasets: [{ label: 'Income', data: data.map(item => item.income), borderColor: '#76c7b7', backgroundColor: 'rgba(118,199,183,.08)', fill: true, tension: .3 }, { label: 'Spending', data: data.map(item => item.spending), borderColor: '#e47c74', backgroundColor: 'rgba(228,124,116,.06)', fill: true, tension: .3 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true, ticks: { callback: value => E.euro(value) } } } } });
+    }
+
+    (async () => { try { [config] = await Promise.all([E.request('/config'), load()]); Chart.defaults.color = '#92a0ae'; Chart.defaults.borderColor = '#2b3642'; Chart.defaults.font.family = 'Inter, system-ui, sans-serif'; render(); } catch (error) { document.getElementById('signals').innerHTML = `<div class="signal-card">${E.escape(error.message)}</div>`; } })();
 });

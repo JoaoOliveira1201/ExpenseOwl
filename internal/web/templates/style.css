@@ -48,6 +48,7 @@ a { color: inherit; }
 .nav a:hover, .nav a.active { background: var(--raised); color: var(--paper); }
 
 .page-heading { padding: 44px 0 24px; display: flex; align-items: end; justify-content: space-between; gap: 24px; }
+.overview-heading { justify-content: flex-end; padding-top: 28px; }
 .eyebrow { display: block; margin-bottom: 7px; color: var(--brass); font: 700 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .16em; text-transform: uppercase; }
 h1, h2, h3 { margin: 0; font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.025em; }
 h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.04; }
@@ -58,6 +59,8 @@ h3 { font-size: 18px; }
 .month-rail { display: grid; grid-template-columns: 48px minmax(190px, 1fr) 48px; align-items: stretch; min-width: 310px; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: var(--panel); }
 .month-rail button { border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 20px; }
 .month-rail button:hover { background: var(--raised); color: var(--brass); }
+.month-rail button:disabled { opacity: .3; cursor: not-allowed; }
+.month-rail button:disabled:hover { background: transparent; color: var(--muted); }
 .month-label { padding: 11px 20px; border-inline: 1px solid var(--line); text-align: center; }
 .month-label span { display: block; color: var(--muted); font: 9px/1.2 ui-monospace, monospace; letter-spacing: .14em; text-transform: uppercase; }
 .month-label strong { display: block; margin-top: 4px; font: 500 18px/1.2 Georgia, serif; }
@@ -67,9 +70,13 @@ h3 { font-size: 18px; }
 .owner-rail button.active { background: var(--brass-soft); color: #f4d99e; }
 
 .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.action-pair { display: flex; align-items: center; justify-content: flex-end; gap: 9px; }
 .button { display: inline-flex; min-height: 40px; align-items: center; justify-content: center; gap: 8px; padding: 9px 15px; border: 1px solid var(--line); border-radius: 9px; background: var(--raised); color: var(--paper); cursor: pointer; font-weight: 700; text-decoration: none; }
 .button:hover { border-color: #536170; }
 .button.primary { border-color: var(--brass); background: var(--brass); color: #19150d; }
+.button.compact { min-height: 34px; padding: 6px 11px; font-size: 12px; }
+.button.income-action { border-color: rgba(118, 199, 183, .5); background: rgba(118, 199, 183, .08); color: var(--mint); }
+.button.income-action:hover { border-color: var(--mint); }
 .button.danger { color: #f2a29c; }
 .button.ghost { background: transparent; }
 .button:disabled { opacity: .5; cursor: wait; }
@@ -111,6 +118,10 @@ h3 { font-size: 18px; }
 @keyframes reveal { from { opacity: 0; transform: translateY(-5px); } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; } }
 .form-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+.optional-fields { grid-column: 1 / -1; margin-top: 2px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.optional-fields summary { width: fit-content; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700; }
+.optional-fields summary::marker { color: var(--brass); }
+.optional-grid { margin-top: 16px; }
 .field { grid-column: span 4; }
 .field.wide { grid-column: span 8; }
 .field.full { grid-column: 1 / -1; }
@@ -142,9 +153,6 @@ td.amount.cost { color: var(--coral); }
 .stack { display: grid; gap: 10px; }
 .category-row, .recurring-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
 .category-row:last-child, .recurring-row:last-child { border: 0; }
-.fixed-note { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; padding: 1px; background: var(--line-soft); }
-.fixed-note div { padding: 18px; background: var(--panel); }
-.fixed-note strong { display: block; margin-top: 5px; font-family: ui-monospace, monospace; }
 .signal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .signal-card { min-height: 150px; padding: 22px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--panel); }
 .signal-card p { margin: 14px 0 0; color: var(--muted); font-size: 17px; }
@@ -174,10 +182,11 @@ td.amount.cost { color: var(--coral); }
 
 @media (max-width: 520px) {
     .toolbar { align-items: stretch; flex-direction: column; }
+    .action-pair { justify-content: stretch; }
+    .action-pair .primary { flex: 1; }
     .owner-rail { display: grid; grid-template-columns: repeat(3, 1fr); }
     .cashflow { grid-template-columns: 1fr; }
     .field, .field.wide { grid-column: 1 / -1; }
     .filter-panel { grid-template-columns: 1fr; }
-    .fixed-note { grid-template-columns: 1fr; }
     .chart-wrap { height: 260px; }
 }

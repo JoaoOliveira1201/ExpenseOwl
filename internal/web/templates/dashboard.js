@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let config = { categories: [], categoryTargets: {} };
     let getOwner = () => E.savedOwner();
     let pieChart;
-    let trendChart;
+    let entryMode = 'expense';
     const disabled = new Set();
 
     const monthElement = document.getElementById('currentMonth');
@@ -17,7 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     getOwner = E.bindOwnerRail(document.getElementById('ownerRail'), render);
     document.getElementById('prevMonth').addEventListener('click', () => moveMonth(-1));
     document.getElementById('nextMonth').addEventListener('click', () => moveMonth(1));
-    document.getElementById('toggleForm').addEventListener('click', () => drawer.classList.toggle('open'));
+    function openEntry(mode) {
+        entryMode = mode;
+        const income = mode === 'income';
+        document.getElementById('entryKind').textContent = income ? 'New income' : 'New expense';
+        document.getElementById('entryTitle').textContent = income ? 'Record income' : 'Record a transaction';
+        document.getElementById('saveEntry').textContent = income ? 'Save income' : 'Save transaction';
+        drawer.classList.add('open');
+        document.getElementById('name').focus();
+    }
+    document.getElementById('addExpense').addEventListener('click', () => openEntry('expense'));
+    document.getElementById('addIncome').addEventListener('click', () => openEntry('income'));
     document.getElementById('closeForm').addEventListener('click', () => drawer.classList.remove('open'));
 
     async function moveMonth(offset) {
@@ -28,7 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function loadExpenses() {
-        const from = new Date(date.getFullYear(), date.getMonth() - 11, 1);
+        const from = new Date(date.getFullYear(), date.getMonth(), 1);
         const to = new Date(date.getFullYear(), date.getMonth() + 1, 1);
         expenses = await E.request(`/expenses?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`);
     }
@@ -49,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
         balanceElement.className = `metric-value ${balance >= 0 ? 'positive' : 'negative'}`;
         renderPie(current);
         renderTargets(current);
-        renderTrend();
     }
 
     function categoryBreakdown(current) {
@@ -95,16 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }).join('');
     }
 
-    function renderTrend() {
-        const periods = Array.from({ length: 12 }, (_, index) => new Date(date.getFullYear(), date.getMonth() - 11 + index, 15));
-        const data = periods.map(period => {
-            const items = monthExpenses(period);
-            return { income: items.filter(item => item.amount > 0).reduce((sum, item) => sum + item.amount, 0), spending: items.filter(item => item.amount < 0).reduce((sum, item) => sum + Math.abs(item.amount), 0) };
-        });
-        if (trendChart) trendChart.destroy();
-        trendChart = new Chart(document.getElementById('trendChart'), { type: 'line', data: { labels: periods.map(period => period.toLocaleDateString(undefined, { month: 'short', year: '2-digit' })), datasets: [{ label: 'Income', data: data.map(item => item.income), borderColor: '#76c7b7', backgroundColor: 'rgba(118,199,183,.08)', fill: true, tension: .3 }, { label: 'Spending', data: data.map(item => item.spending), borderColor: '#e47c74', backgroundColor: 'rgba(228,124,116,.06)', fill: true, tension: .3 }] }, options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: 'index' }, scales: { y: { beginAtZero: true, ticks: { callback: value => E.euro(value) } } } } });
-    }
-
     form.addEventListener('submit', async event => {
         event.preventDefault();
         const button = form.querySelector('[type=submit]');
@@ -114,10 +113,11 @@ document.addEventListener('DOMContentLoaded', () => {
             E.setMessage(message, 'Saving…');
             const receipt = await E.uploadReceipt(document.getElementById('receipt').files[0]);
             let amount = Number(document.getElementById('amount').value);
-            if (!document.getElementById('reportGain').checked) amount *= -1;
+            if (entryMode === 'expense') amount *= -1;
             await E.request('/expense', E.json('PUT', { name: document.getElementById('name').value, category: document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: getOwner(), notes: document.getElementById('notes').value, receipt }));
             form.reset(); document.getElementById('date').value = E.localDateISO();
-            E.setMessage(message, 'Transaction saved.', 'success');
+            form.querySelector('details').open = false;
+            E.setMessage(message, entryMode === 'income' ? 'Income saved.' : 'Transaction saved.', 'success');
             await loadExpenses(); render();
         } catch (error) { E.setMessage(message, error.message, 'error'); }
         finally { button.disabled = false; }

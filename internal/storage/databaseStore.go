@@ -224,33 +224,6 @@ func (store *PostgresStore) AddExpense(ctx context.Context, expense Expense) (Ex
 	return expense, err
 }
 
-func (store *PostgresStore) AddExpenses(ctx context.Context, expenses []Expense) (int, error) {
-	if len(expenses) == 0 {
-		return 0, nil
-	}
-	tx, err := store.db.BeginTx(ctx, nil)
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-	statement, err := tx.PrepareContext(ctx, `INSERT INTO expenses (`+expenseColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING`)
-	if err != nil {
-		return 0, err
-	}
-	defer statement.Close()
-	inserted := 0
-	for _, expense := range expenses {
-		expense = prepareExpense(expense)
-		result, err := statement.ExecContext(ctx, expense.ID, nullable(expense.RecurringID), expense.Name, expense.Category, expense.Amount, expense.Date, expense.Owner, expense.Notes, expense.Receipt)
-		if err != nil {
-			return 0, err
-		}
-		rows, _ := result.RowsAffected()
-		inserted += int(rows)
-	}
-	return inserted, tx.Commit()
-}
-
 func (store *PostgresStore) UpdateExpense(ctx context.Context, id string, expense Expense) (Expense, error) {
 	expense.Owner = normalizeOwner(expense.Owner)
 	result, err := store.db.ExecContext(ctx, `UPDATE expenses SET recurring_id=$1,name=$2,category=$3,amount=$4,date=$5,owner=$6,notes=$7,receipt=$8 WHERE id=$9`,

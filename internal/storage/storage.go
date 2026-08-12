@@ -29,7 +29,6 @@ type Store interface {
 	GetExpenses(context.Context, ExpenseFilter) ([]Expense, error)
 	GetExpense(context.Context, string) (Expense, error)
 	AddExpense(context.Context, Expense) (Expense, error)
-	AddExpenses(context.Context, []Expense) (int, error)
 	UpdateExpense(context.Context, string, Expense) (Expense, error)
 	RemoveExpense(context.Context, string) error
 	RemoveExpenses(context.Context, []string) error

@@ -53,9 +53,6 @@ func main() {
 	mux.HandleFunc("/recurring-expense/delete", handler.DeleteRecurringExpense)
 	mux.HandleFunc("/receipt/upload", handler.UploadReceipt)
 	mux.HandleFunc("/receipts/", handler.ServeReceipt)
-	mux.HandleFunc("/export/csv", handler.ExportCSV)
-	mux.HandleFunc("/import/csv", handler.ImportCSV)
-
 	for _, path := range []string{"/functions.js", "/dashboard.js", "/table.js", "/signals.js", "/settings.js", "/pwa.js", "/manifest.webmanifest", "/manifest.json", "/sw.js", "/style.css", "/favicon.ico", "/chart.min.js"} {
 		mux.HandleFunc(path, handler.ServeStaticFile)
 	}

@@ -33,32 +33,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function render() {
-        document.getElementById('currentMonth').textContent = E.monthLabel(currentDate);
+        const allDates = document.getElementById('showAll').checked;
+        document.getElementById('currentMonth').textContent = allDates ? 'All dates' : E.monthLabel(currentDate);
+        document.getElementById('prevMonth').disabled = allDates;
+        document.getElementById('nextMonth').disabled = allDates;
         const items = filtered();
         document.getElementById('resultCount').textContent = `${items.length} transaction${items.length === 1 ? '' : 's'} in this view.`;
         document.getElementById('rows').innerHTML = items.map(expense => `<tr data-id="${expense.id}"><td>${E.dateTime(expense.date)}</td><td><strong>${E.escape(expense.name)}</strong>${expense.receipt ? ` <a href="${E.escape(expense.receipt)}" target="_blank" aria-label="View receipt">↗</a>` : ''}</td><td>${E.escape(expense.category)}</td><td>${E.escape(expense.owner || 'common')}</td><td class="notes" title="${E.escape(expense.notes || '')}">${E.escape(expense.notes || '—')}</td><td class="amount ${expense.amount > 0 ? 'gain' : 'cost'}">${E.euro(expense.amount)}</td><td><div class="row-actions"><button class="icon-button edit" aria-label="Edit">Edit</button><button class="icon-button delete" aria-label="Delete">Delete</button></div></td></tr>`).join('');
         document.getElementById('empty').hidden = items.length !== 0;
     }
 
-    function openEditor(expense = null) {
+    function openEditor(expense) {
         editing = expense;
         editor.classList.add('open');
-        document.getElementById('editorKicker').textContent = expense ? 'Amend entry' : 'New entry';
-        document.getElementById('editorTitle').textContent = expense ? 'Edit transaction' : 'Add transaction';
         form.reset();
-        document.getElementById('name').value = expense?.name || '';
-        document.getElementById('category').value = expense?.category || config.categories[0];
-        document.getElementById('amount').value = expense ? Math.abs(expense.amount) : '';
-        document.getElementById('date').value = expense ? E.localDateISO(new Date(expense.date)) : E.localDateISO();
-        document.getElementById('gain').checked = expense?.amount > 0;
-        document.getElementById('notes').value = expense?.notes || '';
-        document.getElementById('removeReceiptLabel').hidden = !expense?.receipt;
+        document.getElementById('name').value = expense.name;
+        document.getElementById('category').value = expense.category;
+        document.getElementById('amount').value = Math.abs(expense.amount);
+        document.getElementById('date').value = E.localDateISO(new Date(expense.date));
+        document.getElementById('gain').checked = expense.amount > 0;
+        document.getElementById('notes').value = expense.notes || '';
+        document.getElementById('removeReceiptLabel').hidden = !expense.receipt;
         document.getElementById('removeReceipt').checked = false;
         editor.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
     function closeEditor() { editing = null; editor.classList.remove('open'); E.setMessage(document.getElementById('formMessage')); }
 
-    document.getElementById('addButton').addEventListener('click', () => openEditor());
     document.getElementById('closeEditor').addEventListener('click', closeEditor);
     document.getElementById('cancelEdit').addEventListener('click', closeEditor);
     document.getElementById('prevMonth').addEventListener('click', async () => { currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 15); await load(); });
@@ -88,9 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const replacement = await E.uploadReceipt(file);
             let amount = Number(document.getElementById('amount').value);
             if (!document.getElementById('gain').checked) amount *= -1;
-            const receipt = replacement || (document.getElementById('removeReceipt').checked ? '' : editing?.receipt || '');
-            const payload = { recurringID: editing?.recurringID || '', name: document.getElementById('name').value, category: document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: editing?.owner || getOwner(), notes: document.getElementById('notes').value, receipt };
-            const url = editing ? `/expense/edit?id=${encodeURIComponent(editing.id)}` : '/expense';
+            const receipt = replacement || (document.getElementById('removeReceipt').checked ? '' : editing.receipt || '');
+            const payload = { recurringID: editing.recurringID || '', name: document.getElementById('name').value, category: document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: editing.owner || getOwner(), notes: document.getElementById('notes').value, receipt };
+            const url = `/expense/edit?id=${encodeURIComponent(editing.id)}`;
             await E.request(url, E.json('PUT', payload));
             E.setMessage(message, 'Transaction saved.', 'success');
             closeEditor(); await load();

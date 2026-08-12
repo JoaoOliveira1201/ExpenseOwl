@@ -10,7 +10,6 @@ ExpenseOwl is a focused, self-hosted monthly expense ledger. It runs as a small 
 - Expense and income entries with owners, notes, and local receipt attachments
 - Searchable transaction ledger with edit and delete actions
 - Custom categories and recurring transactions
-- CSV import/export; tags in older CSV files are ignored
 - Installable PWA with no third-party runtime requests
 
 ExpenseOwl deliberately uses fixed conventions: dark appearance, euro (`EUR`) currency, and calendar months beginning on day 1.
@@ -42,23 +41,15 @@ docker compose down                 # keep data
 docker compose down --volumes       # permanently remove all app data
 ```
 
-## Import a CSV
+## Deploy updates
 
-Start the Compose stack, then run:
-
-```sh
-./scripts/import-csv.sh /path/to/expenses.csv
-```
-
-For a non-default URL:
+Run the root deployment script from the server checkout:
 
 ```sh
-./scripts/import-csv.sh /path/to/expenses.csv https://expenses.example.com
+./deploy.sh
 ```
 
-Required columns are `name`, `category`, `amount`, and `date` (case-insensitive). Optional columns are `id`, `owner`, `notes`, and `receipt`. Dates may be RFC3339 or `YYYY-MM-DD`. Negative amounts are spending and positive amounts are income. Imports are batched in one PostgreSQL transaction; duplicate IDs are skipped.
-
-The same import and export actions are available on the Manage page.
+It requires a clean working tree, fetches and fast-forwards the current branch from `origin`, rebuilds the app image, starts the Compose stack, and prints container status.
 
 ## Configuration
 

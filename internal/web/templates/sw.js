@@ -1,9 +1,11 @@
-const CACHE_NAME = 'expenseowl-home-v6';
+const CACHE_NAME = 'expenseowl-home-v7';
 const APP_SHELL = [
     '/',
     '/manifest.webmanifest',
-    '/pwa/household-192.png',
-    '/pwa/household-512.png'
+    '/pwa/icon-192.png',
+    '/pwa/icon-512.png',
+    '/pwa/icon-maskable-512.png',
+    '/pwa/apple-touch-icon.png'
 ];
 const STATIC_ASSETS = new Set([
     ...APP_SHELL.slice(1),
@@ -20,7 +22,9 @@ const STATIC_ASSETS = new Set([
 self.addEventListener('install', (event) => {
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(APP_SHELL))
+            // One temporarily unavailable shell asset should not prevent the
+            // service worker from installing and being retried on next load.
+            .then((cache) => Promise.allSettled(APP_SHELL.map((asset) => cache.add(asset))))
             .then(() => self.skipWaiting())
     );
 });

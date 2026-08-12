@@ -50,11 +50,7 @@ a { color: inherit; }
 }
 .header-inner { width: min(1180px, calc(100% - 40px)); min-height: 78px; margin: auto; display: flex; align-items: center; gap: 28px; }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; white-space: nowrap; }
-.brand-mark { position: relative; display: grid; width: 40px; height: 40px; place-items: center; border: 1px solid #789083; border-radius: 50% 50% 45% 45%; background: var(--sage-wash); color: var(--ink); }
-.brand-mark::before, .brand-mark::after { content: ""; position: absolute; top: 15px; width: 5px; height: 7px; border: 2px solid currentColor; border-radius: 50%; }
-.brand-mark::before { left: 10px; }
-.brand-mark::after { right: 10px; }
-.brand-mark span { width: 8px; height: 8px; margin-top: 13px; border-bottom: 2px solid currentColor; transform: rotate(45deg); }
+.brand-mark { display: block; width: 40px; height: 40px; border-radius: 11px; box-shadow: 0 3px 10px rgba(38,54,48,.16); }
 .brand-copy { display: grid; line-height: 1; }
 .brand-copy strong { font: 600 20px/1 var(--display); letter-spacing: -.025em; }
 .brand-copy small { margin-top: 5px; color: var(--sage-dark); font: 700 9px/1 var(--utility); letter-spacing: .17em; text-transform: uppercase; }

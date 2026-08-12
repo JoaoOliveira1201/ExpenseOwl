@@ -1,9 +1,9 @@
-const CACHE_NAME = 'expenseowl-home-v8';
+const CACHE_NAME = 'expenseowl-home-v9';
 const APP_SHELL = [
     '/',
     '/manifest.webmanifest',
-    '/pwa/icon-192.png',
-    '/pwa/icon-512.png'
+    '/pwa/home-owl-192.png',
+    '/pwa/home-owl-512.png'
 ];
 const STATIC_ASSETS = new Set([
     ...APP_SHELL.slice(1),

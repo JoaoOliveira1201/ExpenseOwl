@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expenseowl-v3';
+const CACHE_NAME = 'expenseowl-ledger-v1';
 const APP_SHELL = [
     '/',
     '/manifest.webmanifest',
@@ -8,9 +8,12 @@ const APP_SHELL = [
 const STATIC_ASSETS = new Set([
     ...APP_SHELL.slice(1),
     '/style.css',
-    '/fa.min.css',
     '/chart.min.js',
     '/functions.js',
+    '/dashboard.js',
+    '/table.js',
+    '/signals.js',
+    '/settings.js',
     '/pwa.js'
 ]);
 

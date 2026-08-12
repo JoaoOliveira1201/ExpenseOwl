@@ -1,0 +1,7 @@
+.git
+.github
+.expenseowl
+assets
+data
+kubernetes
+*.md

@@ -8,8 +8,8 @@
     "display": "standalone",
     "orientation": "any",
     "prefer_related_applications": false,
-    "background_color": "#1a1a1a",
-    "theme_color": "#1a1a1a",
+    "background_color": "#090d12",
+    "theme_color": "#090d12",
     "icons": [
         {
             "src": "/pwa/icon-192.png",

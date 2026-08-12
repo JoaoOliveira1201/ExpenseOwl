@@ -1,0 +1,42 @@
+name: expenseowl
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-expenseowl}
+      POSTGRES_USER: ${POSTGRES_USER:-expenseowl}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-expenseowl}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-expenseowl} -d ${POSTGRES_DB:-expenseowl}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-expenseowl}
+      PGUSER: ${POSTGRES_USER:-expenseowl}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-expenseowl}
+      PGSSLMODE: disable
+      RECEIPT_DIR: /app/data/receipts
+      TZ: ${TZ:-Europe/Lisbon}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - receipt-data:/app/data/receipts
+
+volumes:
+  postgres-data:
+  receipt-data:

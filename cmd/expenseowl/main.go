@@ -5,104 +5,72 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/tanq16/expenseowl/internal/api"
 	"github.com/tanq16/expenseowl/internal/storage"
-	"github.com/tanq16/expenseowl/internal/web"
 )
 
 var version = "dev"
 
-func runServer(port int) {
-	storage, err := storage.InitializeStorage()
+func main() {
+	defaultPort := 8080
+	if value := os.Getenv("PORT"); value != "" {
+		_, _ = fmt.Sscan(value, &defaultPort)
+	}
+	port := flag.Int("port", defaultPort, "HTTP port")
+	flag.Parse()
+
+	store, err := storage.InitializeStorage()
 	if err != nil {
-		log.Fatalf("Failed to initialize storage: %v", err)
+		log.Fatal(err)
 	}
-	defer storage.Close()
-	handler := api.NewHandler(storage)
+	defer store.Close()
 
-	// Version Handler
-	http.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte(version))
-	})
+	handler := api.NewHandler(store)
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /{$}", handler.ServePage("index.html"))
+	mux.HandleFunc("GET /table", handler.ServePage("table.html"))
+	mux.HandleFunc("GET /signals", handler.ServePage("signals.html"))
+	mux.HandleFunc("GET /settings", handler.ServePage("settings.html"))
+	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(version)) })
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
-	// UI Handlers
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/" {
-			http.NotFound(w, r)
-			return
-		}
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Content-Type", "text/html")
-		if err := web.ServeTemplate(w, "index.html"); err != nil {
-			log.Printf("HTTP ERROR: Failed to serve template: %v", err)
-			http.Error(w, "Failed to serve template", http.StatusInternalServerError)
-			return
-		}
-	})
-	http.HandleFunc("/table", handler.ServeTableView)
-	http.HandleFunc("/settings", handler.ServeSettingsPage)
+	mux.HandleFunc("/config", handler.GetConfig)
+	mux.HandleFunc("/categories", handler.GetCategories)
+	mux.HandleFunc("/categories/edit", handler.UpdateCategories)
+	mux.HandleFunc("/category-targets", handler.GetCategoryTargets)
+	mux.HandleFunc("/category-targets/edit", handler.UpdateCategoryTargets)
+	mux.HandleFunc("/expense", handler.AddExpense)
+	mux.HandleFunc("/expenses", handler.GetExpenses)
+	mux.HandleFunc("/expense/edit", handler.EditExpense)
+	mux.HandleFunc("/expense/delete", handler.DeleteExpense)
+	mux.HandleFunc("/expenses/delete", handler.DeleteMultipleExpenses)
+	mux.HandleFunc("/recurring-expense", handler.AddRecurringExpense)
+	mux.HandleFunc("/recurring-expenses", handler.GetRecurringExpenses)
+	mux.HandleFunc("/recurring-expense/edit", handler.UpdateRecurringExpense)
+	mux.HandleFunc("/recurring-expense/delete", handler.DeleteRecurringExpense)
+	mux.HandleFunc("/receipt/upload", handler.UploadReceipt)
+	mux.HandleFunc("/receipts/", handler.ServeReceipt)
+	mux.HandleFunc("/export/csv", handler.ExportCSV)
+	mux.HandleFunc("/import/csv", handler.ImportCSV)
 
-	// Static File Handlers
-	http.HandleFunc("/functions.js", handler.ServeStaticFile)
-	http.HandleFunc("/pwa.js", handler.ServeStaticFile)
-	http.HandleFunc("/manifest.webmanifest", handler.ServeStaticFile)
-	// Keep the old manifest URL available while existing browsers refresh cached HTML.
-	http.HandleFunc("/manifest.json", handler.ServeStaticFile)
-	http.HandleFunc("/sw.js", handler.ServeStaticFile)
-	http.HandleFunc("/pwa/", handler.ServeStaticFile)
-	http.HandleFunc("/style.css", handler.ServeStaticFile)
-	http.HandleFunc("/favicon.ico", handler.ServeStaticFile)
-	http.HandleFunc("/chart.min.js", handler.ServeStaticFile)
-	http.HandleFunc("/fa.min.css", handler.ServeStaticFile)
-	http.HandleFunc("/webfonts/", handler.ServeStaticFile)
-
-	// Config
-	http.HandleFunc("/config", handler.GetConfig)
-	http.HandleFunc("/categories", handler.GetCategories)
-	http.HandleFunc("/categories/edit", handler.UpdateCategories)
-	http.HandleFunc("/currency", handler.GetCurrency)
-	http.HandleFunc("/currency/edit", handler.UpdateCurrency)
-	http.HandleFunc("/startdate", handler.GetStartDate)
-	http.HandleFunc("/startdate/edit", handler.UpdateStartDate)
-	http.HandleFunc("/category-targets", handler.GetCategoryTargets)
-	http.HandleFunc("/category-targets/edit", handler.UpdateCategoryTargets)
-	// http.HandleFunc("/tags", handler.GetTags)
-	// http.HandleFunc("/tags/edit", handler.UpdateTags)
-
-	// Expenses
-	http.HandleFunc("/expense", handler.AddExpense)                     // PUT for add
-	http.HandleFunc("/expenses", handler.GetExpenses)                   // GET all
-	http.HandleFunc("/expense/edit", handler.EditExpense)               // PUT for edit
-	http.HandleFunc("/expense/delete", handler.DeleteExpense)           // DELETE for single
-	http.HandleFunc("/expenses/delete", handler.DeleteMultipleExpenses) // DELETE for multiple
-	http.HandleFunc("/receipt/upload", handler.UploadReceipt)
-	http.HandleFunc("/receipts/", handler.ServeReceipt)
-
-	// Recurring Expenses
-	http.HandleFunc("/recurring-expense", handler.AddRecurringExpense)           // PUT for add
-	http.HandleFunc("/recurring-expenses", handler.GetRecurringExpenses)         // GET all
-	http.HandleFunc("/recurring-expense/edit", handler.UpdateRecurringExpense)   // PUT for edit
-	http.HandleFunc("/recurring-expense/delete", handler.DeleteRecurringExpense) // DELETE
-
-	// Import/Export
-	http.HandleFunc("/export/csv", handler.ExportCSV)
-	http.HandleFunc("/import/csv", handler.ImportCSV)
-	http.HandleFunc("/import/csvold", handler.ImportOldCSV)
-
-	log.Println("Starting server on port", port, "...")
-	if err := http.ListenAndServe(fmt.Sprint(":", port), nil); err != nil {
-		log.Fatalf("Server failed to start: %v", err)
+	for _, path := range []string{"/functions.js", "/dashboard.js", "/table.js", "/signals.js", "/settings.js", "/pwa.js", "/manifest.webmanifest", "/manifest.json", "/sw.js", "/style.css", "/favicon.ico", "/chart.min.js"} {
+		mux.HandleFunc(path, handler.ServeStaticFile)
 	}
+	mux.HandleFunc("/pwa/", handler.ServeStaticFile)
+
+	server := &http.Server{Addr: fmt.Sprintf(":%d", *port), Handler: securityHeaders(mux), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 60 * time.Second, IdleTimeout: 90 * time.Second}
+	log.Printf("ExpenseOwl %s listening on :%d", version, *port)
+	log.Fatal(server.ListenAndServe())
 }
 
-func main() {
-	port := flag.Int("port", 8080, "Port to serve from")
-	flag.Parse()
-	runServer(*port)
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "same-origin")
+		w.Header().Set("X-Frame-Options", "DENY")
+		next.ServeHTTP(w, r)
+	})
 }

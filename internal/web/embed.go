@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 )
 
-//go:embed templates
+//go:embed templates/*.html templates/*.js templates/*.css templates/*.ico templates/*.webmanifest templates/pwa/*.png
 var content embed.FS
 
 func GetTemplates() *embed.FS {

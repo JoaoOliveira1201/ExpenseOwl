@@ -3,9 +3,8 @@ package api
 import (
 	"encoding/csv"
 	"fmt"
-	"log"
+	"io"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -13,363 +12,133 @@ import (
 	"github.com/tanq16/expenseowl/internal/storage"
 )
 
-// exports all expenses to CSV
 func (h *Handler) ExportCSV(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+	if !method(w, r, http.MethodGet) {
 		return
 	}
-	expenses, err := h.storage.GetAllExpenses()
+	expenses, err := h.storage.GetExpenses(r.Context(), storage.ExpenseFilter{})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Failed to retrieve expenses"})
-		log.Printf("API ERROR: Failed to retrieve expenses for CSV export: %v\n", err)
+		h.serverError(w, "export transactions", err)
 		return
 	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename=expenses.csv")
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="expenseowl.csv"`)
 	writer := csv.NewWriter(w)
-	defer writer.Flush()
-
-	// Write header
-	headers := []string{"ID", "Name", "Category", "Amount", "Date", "Tags", "Owner", "Notes", "Receipt"}
-	if err := writer.Write(headers); err != nil {
-		log.Printf("API ERROR: Failed to write CSV header: %v\n", err)
-		return
-	}
-
-	// Write records
+	_ = writer.Write([]string{"ID", "Name", "Category", "Amount", "Date", "Owner", "Notes", "Receipt"})
 	for _, expense := range expenses {
-		record := []string{
-			expense.ID,
-			expense.Name,
-			expense.Category,
-			// expense.Currency,
-			strconv.FormatFloat(expense.Amount, 'f', 2, 64),
-			expense.Date.Format(time.RFC3339),
-			strings.Join(expense.Tags, ","),
-			expense.Owner,
-			expense.Notes,
-			expense.Receipt,
-		}
-		if err := writer.Write(record); err != nil {
-			log.Printf("API ERROR: Failed to write CSV record for expense ID %s: %v\n", expense.ID, err)
-			continue
-		}
+		_ = writer.Write([]string{expense.ID, expense.Name, expense.Category, strconv.FormatFloat(expense.Amount, 'f', 2, 64), expense.Date.Format(time.RFC3339), expense.Owner, expense.Notes, expense.Receipt})
 	}
-	log.Println("HTTP: Exported expenses to CSV")
+	writer.Flush()
 }
 
-// imports expenses from CSV
+type importResult struct {
+	Status         string   `json:"status"`
+	TotalProcessed int      `json:"total_processed"`
+	Imported       int      `json:"imported"`
+	Skipped        int      `json:"skipped"`
+	NewCategories  []string `json:"new_categories"`
+}
+
 func (h *Handler) ImportCSV(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
+	if !method(w, r, http.MethodPost) {
 		return
 	}
-	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max file size
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Could not parse multipart form"})
-		return
-	}
+	r.Body = http.MaxBytesReader(w, r.Body, 20<<20)
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Error retrieving the file"})
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Attach a CSV file in the file field"})
 		return
 	}
 	defer file.Close()
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Failed to read CSV file"})
-		return
-	}
-	if len(records) < 2 {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "CSV file must have a header and at least one data row"})
-		return
-	}
 
-	header := records[0]
-	colMap := make(map[string]int)
-	for i, col := range header {
-		colMap[strings.ToLower(strings.TrimSpace(col))] = i
+	config, err := h.storage.GetConfig(r.Context())
+	if err != nil {
+		h.serverError(w, "load categories for import", err)
+		return
 	}
-	// Check for mandatory columns
-	requiredCols := []string{"name", "category", "amount", "date"}
-	for _, col := range requiredCols {
-		if _, ok := colMap[col]; !ok {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: fmt.Sprintf("Missing required column: %s", col)})
+	expenses, categories, total, skipped, err := parseCSV(file, config.Categories)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{err.Error()})
+		return
+	}
+	inserted, err := h.storage.AddExpenses(r.Context(), expenses)
+	if err != nil {
+		h.serverError(w, "import transactions", err)
+		return
+	}
+	if len(categories) > len(config.Categories) {
+		if err := h.storage.UpdateCategories(r.Context(), categories); err != nil {
+			h.serverError(w, "save imported categories", err)
 			return
 		}
 	}
-	// Get optional column indices
-	idIdx, idExists := colMap["id"]
-	tagsIdx, tagsExists := colMap["tags"]
-	currencyIdx, currencyExists := colMap["currency"]
-	ownerIdx, ownerExists := colMap["owner"]
-	notesIdx, notesExists := colMap["notes"]
-	receiptIdx, receiptExists := colMap["receipt"]
-
-	currentCategories, err := h.storage.GetCategories()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Could not retrieve current categories"})
-		return
-	}
-	categorySet := make(map[string]bool)
-	for _, cat := range currentCategories {
-		categorySet[strings.ToLower(cat)] = true
-	}
-	var newCategories []string
-	var importedCount, skippedCount int
-	// TODO: might be worth setting default currency when we have currency updation behavior
-	currencyVal, err := h.storage.GetCurrency()
-	if err != nil {
-		log.Printf("Error: Could not retrieve currency, shutting down import: %v\n", err)
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Could not retrieve currency"})
-		return
-	}
-
-	for i, record := range records[1:] {
-		if len(record) != len(header) {
-			log.Printf("Warning: Skipping row %d due to incorrect column count\n", i+2)
-			skippedCount++
-			continue
-		}
-
-		// Check if expense exists by ID, if provided - without doing a clash resolution
-		if idExists {
-			id := record[idIdx]
-			if _, err := h.storage.GetExpense(id); err == nil {
-				log.Printf("Info: Skipping row %d because expense with ID '%s' already exists\n", i+2, id)
-				skippedCount++
-				continue
-			}
-		}
-
-		// Check for currency field, if provided - default is retrieved
-		localCurrency := currencyVal
-		if currencyExists {
-			currency := record[currencyIdx]
-			if !slices.Contains(storage.SupportedCurrencies, currency) {
-				log.Printf("Warning: Skipping row %d due to invalid currency: %s\n", i+2, currency)
-				skippedCount++
-				continue
-			}
-			localCurrency = strings.TrimSpace(currency)
-		}
-
-		amount, err := strconv.ParseFloat(record[colMap["amount"]], 64)
-		if err != nil {
-			log.Printf("Warning: Skipping row %d due to invalid amount: %s\n", i+2, record[colMap["amount"]])
-			skippedCount++
-			continue
-		}
-		date, err := parseDate(record[colMap["date"]])
-		if err != nil {
-			log.Printf("Warning: Skipping row %d due to invalid date: %v\n", i+2, err)
-			skippedCount++
-			continue
-		}
-		category := strings.TrimSpace(record[colMap["category"]])
-		if _, ok := categorySet[strings.ToLower(category)]; !ok {
-			newCategories = append(newCategories, category)
-			categorySet[strings.ToLower(category)] = true // Add to set to handle duplicates in the same file
-		}
-		var tags []string
-		if tagsExists {
-			tagsStr := record[tagsIdx]
-			if tagsStr != "" {
-				tags = strings.Split(tagsStr, ",")
-				for i := range tags {
-					tags[i] = strings.TrimSpace(tags[i])
-				}
-			}
-		}
-
-		owner := "common"
-		if ownerExists {
-			owner = strings.TrimSpace(record[ownerIdx])
-			if owner == "" {
-				owner = "common"
-			}
-		}
-		notes := ""
-		if notesExists {
-			notes = record[notesIdx]
-		}
-		receipt := ""
-		if receiptExists {
-			receipt = strings.TrimSpace(record[receiptIdx])
-		}
-
-		expense := storage.Expense{
-			Name:     strings.TrimSpace(record[colMap["name"]]),
-			Category: category,
-			Amount:   amount,
-			Currency: localCurrency,
-			Date:     date,
-			Tags:     tags,
-			Owner:    owner,
-			Notes:    notes,
-			Receipt:  receipt,
-		}
-		if err := expense.Validate(); err != nil {
-			log.Printf("Warning: Skipping row %d due to validation error: %v\n", i+2, err)
-			skippedCount++
-			continue
-		}
-		if err := h.storage.AddExpense(expense); err != nil {
-			log.Printf("Error: Could not add expense from row %d: %v\n", i+2, err)
-			skippedCount++
-			continue
-		}
-		importedCount++
-		time.Sleep(10 * time.Millisecond) // Throttle to reduce storage overhead
-	}
-
-	if len(newCategories) > 0 {
-		if err := h.storage.UpdateCategories(append(currentCategories, newCategories...)); err != nil {
-			log.Printf("Warning: Failed to add new categories to config: %v\n", err)
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":          "success",
-		"total_processed": len(records) - 1,
-		"imported":        importedCount,
-		"skipped":         skippedCount,
-		"new_categories":  newCategories,
-	})
-	log.Printf("HTTP: Imported %d expenses from CSV file. Skipped %d records.", importedCount, skippedCount)
+	newCategories := categories[len(config.Categories):]
+	writeJSON(w, http.StatusOK, importResult{Status: "success", TotalProcessed: total, Imported: inserted, Skipped: skipped + len(expenses) - inserted, NewCategories: newCategories})
 }
 
-// handles importing from ExpenseOwl < v4.0
-// TODO: remove this in the future
-func (h *Handler) ImportOldCSV(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
-		return
-	}
-	if err := r.ParseMultipartForm(10 << 20); err != nil { // 10MB max file size
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Could not parse multipart form"})
-		return
-	}
-	file, _, err := r.FormFile("file")
+func parseCSV(source io.Reader, existingCategories []string) ([]storage.Expense, []string, int, int, error) {
+	reader := csv.NewReader(source)
+	reader.FieldsPerRecord = -1
+	header, err := reader.Read()
 	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Error retrieving the file"})
-		return
+		return nil, nil, 0, 0, fmt.Errorf("CSV is empty or unreadable")
 	}
-	defer file.Close()
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "Failed to read CSV file"})
-		return
+	columns := map[string]int{}
+	for index, name := range header {
+		columns[strings.ToLower(strings.TrimSpace(name))] = index
 	}
-	if len(records) < 2 {
-		writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: "CSV file must have a header and at least one data row"})
-		return
-	}
-
-	header := records[0]
-	colMap := make(map[string]int)
-	for i, col := range header {
-		colMap[strings.ToLower(strings.TrimSpace(col))] = i
-	}
-	requiredCols := []string{"name", "category", "amount", "date"}
-	for _, col := range requiredCols {
-		if _, ok := colMap[col]; !ok {
-			writeJSON(w, http.StatusBadRequest, ErrorResponse{Error: fmt.Sprintf("Missing required column: %s", col)})
-			return
+	for _, required := range []string{"name", "category", "amount", "date"} {
+		if _, ok := columns[required]; !ok {
+			return nil, nil, 0, 0, fmt.Errorf("Missing required column: %s", required)
 		}
 	}
-
-	currentCategories, err := h.storage.GetCategories()
-	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, ErrorResponse{Error: "Could not retrieve current categories"})
-		return
-	}
-	categorySet := make(map[string]bool)
-	for _, cat := range currentCategories {
-		categorySet[strings.ToLower(cat)] = true
-	}
-	var newCategories []string
-	var importedCount, skippedCount int
-
-	for i, record := range records[1:] {
-		if len(record) != len(header) {
-			log.Printf("Warning: Skipping row %d due to incorrect column count\n", i+2)
-			skippedCount++
-			continue
+	value := func(row []string, name string) string {
+		index, ok := columns[name]
+		if !ok || index >= len(row) {
+			return ""
 		}
-		amount, err := strconv.ParseFloat(record[colMap["amount"]], 64)
+		return strings.TrimSpace(row[index])
+	}
+	categories := append([]string(nil), existingCategories...)
+	categorySet := map[string]bool{}
+	for _, category := range categories {
+		categorySet[strings.ToLower(category)] = true
+	}
+	expenses := make([]storage.Expense, 0)
+	total, skipped := 0, 0
+	for {
+		row, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		total++
 		if err != nil {
-			log.Printf("Warning: Skipping row %d due to invalid amount: %s\n", i+2, record[colMap["amount"]])
-			skippedCount++
+			skipped++
 			continue
 		}
-		date, err := parseDate(record[colMap["date"]])
-		if err != nil {
-			log.Printf("Warning: Skipping row %d due to invalid date: %v\n", i+2, err)
-			skippedCount++
+		amount, amountErr := strconv.ParseFloat(value(row, "amount"), 64)
+		date, dateErr := parseDate(value(row, "date"))
+		category := value(row, "category")
+		expense := storage.Expense{ID: value(row, "id"), Name: value(row, "name"), Category: category, Amount: amount, Date: date, Owner: value(row, "owner"), Notes: value(row, "notes"), Receipt: value(row, "receipt")}
+		if amountErr != nil || dateErr != nil || expense.Validate() != nil {
+			skipped++
 			continue
 		}
-		category := strings.TrimSpace(record[colMap["category"]])
-		if _, ok := categorySet[strings.ToLower(category)]; !ok {
-			newCategories = append(newCategories, category)
-			categorySet[strings.ToLower(category)] = true // Add to set to handle duplicates in the same file
+		key := strings.ToLower(expense.Category)
+		if !categorySet[key] {
+			categories = append(categories, expense.Category)
+			categorySet[key] = true
 		}
-
-		// switches sign for new expenseowl
-		amountUpdated := amount
-		if category != "Income" {
-			amountUpdated = amount * -1
-		}
-		expense := storage.Expense{
-			Name:     strings.TrimSpace(record[colMap["name"]]),
-			Category: category,
-			Amount:   amountUpdated,
-			Date:     date,
-		}
-		if err := expense.Validate(); err != nil {
-			log.Printf("Warning: Skipping row %d due to validation error: %v\n", i+2, err)
-			skippedCount++
-			continue
-		}
-		if err := h.storage.AddExpense(expense); err != nil {
-			log.Printf("Error: Could not add expense from row %d: %v\n", i+2, err)
-			skippedCount++
-			continue
-		}
-		importedCount++
-		time.Sleep(10 * time.Millisecond)
+		expenses = append(expenses, expense)
 	}
-
-	if len(newCategories) > 0 {
-		if err := h.storage.UpdateCategories(append(currentCategories, newCategories...)); err != nil {
-			log.Printf("Warning: Failed to add new categories to config: %v\n", err)
-		}
-	}
-	writeJSON(w, http.StatusOK, map[string]any{
-		"status":          "success",
-		"total_processed": len(records) - 1,
-		"imported":        importedCount,
-		"skipped":         skippedCount,
-		"new_categories":  newCategories,
-	})
-	log.Printf("HTTP: Imported %d expenses from CSV file. Skipped %d records.", importedCount, skippedCount)
+	return expenses, categories, total, skipped, nil
 }
 
-func parseDate(dateStr string) (time.Time, error) {
-	dateFormats := []string{
-		time.RFC3339,
-		"2006-01-02T15:04:05Z07:00",
-		"2006-01-02 15:04:05",
-		"2006-01-02",
-		"2006-1-2",
-		"2006/01/02",
-		"2006/1/2",
-	}
-	for _, format := range dateFormats {
-		if d, err := time.Parse(format, dateStr); err == nil {
-			return d.UTC(), nil
+func parseDate(value string) (time.Time, error) {
+	for _, format := range []string{time.RFC3339, "2006-01-02 15:04:05", "2006-01-02", "2006-1-2", "2006/01/02", "2006/1/2"} {
+		if date, err := time.Parse(format, value); err == nil {
+			return date.UTC(), nil
 		}
 	}
-	return time.Time{}, fmt.Errorf("unable to parse date: %s", dateStr)
+	return time.Time{}, fmt.Errorf("invalid date")
 }

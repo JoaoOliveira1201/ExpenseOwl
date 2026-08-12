@@ -160,6 +160,36 @@ func (h *Handler) UpdateCategoryTargets(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
 }
 
+func (h *Handler) UpdateCategoryParents(w http.ResponseWriter, r *http.Request) {
+	if !method(w, r, http.MethodPut) {
+		return
+	}
+	var parents map[string]string
+	if err := decodeJSON(r, &parents); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{err.Error()})
+		return
+	}
+	config, err := h.storage.GetConfig(r.Context())
+	if err != nil {
+		h.serverError(w, "validate category parents", err)
+		return
+	}
+	clean := make(map[string]string, len(config.Categories))
+	for _, category := range config.Categories {
+		parent := parents[category]
+		if !storage.ValidateCategoryParent(parent) {
+			writeJSON(w, http.StatusBadRequest, ErrorResponse{"Choose essentials or lifestyle for " + category})
+			return
+		}
+		clean[category] = parent
+	}
+	if err := h.storage.UpdateCategoryParents(r.Context(), clean); err != nil {
+		h.serverError(w, "save category parents", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "success"})
+}
+
 func (h *Handler) GetExpenses(w http.ResponseWriter, r *http.Request) {
 	if !method(w, r, http.MethodGet) {
 		return

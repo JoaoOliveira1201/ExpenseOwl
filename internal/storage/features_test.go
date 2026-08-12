@@ -25,6 +25,18 @@ func TestExpenseRejectsUnsafeReceiptReference(t *testing.T) {
 	}
 }
 
+func TestCategoryParentDefaultsAndValidation(t *testing.T) {
+	if DefaultCategoryParent("Shopping") != ParentLifestyle {
+		t.Fatal("shopping should default to lifestyle")
+	}
+	if DefaultCategoryParent("Rent") != ParentEssential {
+		t.Fatal("rent should default to essentials")
+	}
+	if !ValidateCategoryParent(ParentEssential) || !ValidateCategoryParent(ParentLifestyle) || ValidateCategoryParent("other") {
+		t.Fatal("category parent validation accepted an unexpected value")
+	}
+}
+
 func TestGenerateMonthlyExpenses(t *testing.T) {
 	start := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	items := generateExpenses(RecurringExpense{ID: "rule", Name: "Rent", Category: "Rent", Amount: -900, StartDate: start, Interval: "monthly", Occurrences: 3, Owner: "common"}, false)

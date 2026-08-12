@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	Currency  = "EUR"
-	StartDate = 1
+	Currency         = "EUR"
+	StartDate        = 1
+	ParentEssential  = "essentials"
+	ParentLifestyle  = "lifestyle"
 )
 
 var defaultCategories = []string{
@@ -25,6 +27,7 @@ type Store interface {
 	GetConfig(context.Context) (Config, error)
 	UpdateCategories(context.Context, []string) error
 	UpdateCategoryTargets(context.Context, map[string]float64) error
+	UpdateCategoryParents(context.Context, map[string]string) error
 
 	GetExpenses(context.Context, ExpenseFilter) ([]Expense, error)
 	GetExpense(context.Context, string) (Expense, error)
@@ -42,8 +45,22 @@ type Store interface {
 type Config struct {
 	Categories      []string           `json:"categories"`
 	CategoryTargets map[string]float64 `json:"categoryTargets"`
+	CategoryParents map[string]string  `json:"categoryParents"`
 	Currency        string             `json:"currency"`
 	StartDate       int                `json:"startDate"`
+}
+
+func DefaultCategoryParent(category string) string {
+	switch strings.ToLower(category) {
+	case "entertainment", "shopping", "miscellaneous":
+		return ParentLifestyle
+	default:
+		return ParentEssential
+	}
+}
+
+func ValidateCategoryParent(parent string) bool {
+	return parent == ParentEssential || parent == ParentLifestyle
 }
 
 type ExpenseFilter struct {

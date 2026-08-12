@@ -120,6 +120,15 @@ h3 { font-size: 18px; }
 .metric.income .metric-value, .metric.balance .metric-value.positive { color: var(--sage-dark); }
 .metric.spending .metric-value, .metric.balance .metric-value.negative { color: var(--berry); }
 .metric.balance { background: var(--paper-warm); }
+.allocation-card { display: grid; grid-template-columns: repeat(3, 1fr); min-height: 58px; overflow: hidden; background: var(--line-soft); }
+.allocation-part { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 18px; background: var(--paper); }
+.allocation-part + .allocation-part { border-left: 1px solid var(--line-soft); }
+.allocation-part svg { width: 23px; height: 23px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.allocation-part strong { font: 700 clamp(17px, 2vw, 22px)/1 var(--utility); letter-spacing: -.04em; }
+.allocation-part.essentials { color: var(--sage-dark); background: linear-gradient(110deg, var(--sage-wash), var(--paper) 74%); }
+.allocation-part.lifestyle { color: var(--lilac); }
+.allocation-part.savings { color: var(--blue); background: linear-gradient(250deg, #e5edf0, var(--paper) 74%); }
+.allocation-part.savings.negative { color: var(--berry); background: linear-gradient(250deg, var(--berry-wash), var(--paper) 74%); }
 
 .section { margin-top: 22px; }
 .target-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 13px; }
@@ -175,10 +184,10 @@ td.amount.cost { color: var(--berry); }
 .panel-hint { color: var(--ink-soft); font-size: 12px; }
 .stack { display: grid; gap: 10px; }
 .category-row, .recurring-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
-.category-list-head { display: grid; grid-template-columns: minmax(0, 1fr) 180px 132px; gap: 14px; padding: 0 0 8px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font: 750 9px/1 var(--utility); letter-spacing: .12em; text-transform: uppercase; }
+.category-list-head { display: grid; grid-template-columns: minmax(0, 1fr) 170px 180px 132px; gap: 14px; padding: 0 0 8px; border-bottom: 1px solid var(--line); color: var(--ink-soft); font: 750 9px/1 var(--utility); letter-spacing: .12em; text-transform: uppercase; }
 .category-list-head span:last-child { text-align: right; }
-.category-target-row { grid-template-columns: minmax(0, 1fr) 180px 132px; gap: 14px; }
-.target-input span { display: none; }
+.category-target-row { grid-template-columns: minmax(0, 1fr) 170px 180px 132px; gap: 14px; }
+.target-input span, .category-parent-field span { display: none; }
 .category-actions { display: flex; justify-content: flex-end; gap: 5px; }
 .add-category { max-width: 620px; }
 .category-row:last-child, .recurring-row:last-child { border: 0; }
@@ -218,6 +227,9 @@ td.amount.cost { color: var(--berry); }
     .owner-rail { display: grid; grid-template-columns: repeat(3, 1fr); }
     .metric { min-height: 66px; align-items: flex-start; justify-content: center; flex-direction: column; gap: 7px; padding: 11px 10px; }
     .metric-value { font-size: clamp(14px, 4vw, 17px); }
+    .allocation-part { gap: 7px; padding: 10px 8px; }
+    .allocation-part svg { width: 20px; height: 20px; }
+    .allocation-part strong { font-size: 16px; }
     .field, .field.wide { grid-column: 1 / -1; }
     .filter-panel, .signal-grid { grid-template-columns: 1fr; }
     .chart-wrap { height: 260px; }
@@ -234,7 +246,7 @@ td.amount.cost { color: var(--berry); }
 @media (max-width: 680px) {
     .category-list-head { display: none; }
     .category-target-row { grid-template-columns: 1fr; gap: 9px; padding: 15px 0; }
-    .target-input span { display: block; margin-bottom: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
+    .target-input span, .category-parent-field span { display: block; margin-bottom: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
     .category-actions { justify-content: flex-end; }
     .panel-hint { display: none; }
 }

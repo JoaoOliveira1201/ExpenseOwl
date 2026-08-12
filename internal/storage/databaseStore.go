@@ -77,8 +77,10 @@ func (store *PostgresStore) migrate(ctx context.Context) error {
 		`CREATE TABLE IF NOT EXISTS app_config (
 			id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
 			categories JSONB NOT NULL,
-			category_targets JSONB NOT NULL DEFAULT '{}'
+			category_targets JSONB NOT NULL DEFAULT '{}',
+			category_parents JSONB NOT NULL DEFAULT '{}'
 		)`,
+		`ALTER TABLE app_config ADD COLUMN IF NOT EXISTS category_parents JSONB NOT NULL DEFAULT '{}'`,
 		`DO $$ BEGIN
 			IF to_regclass('public.config') IS NOT NULL THEN
 				INSERT INTO app_config (id, categories, category_targets)
@@ -124,16 +126,24 @@ func (store *PostgresStore) migrate(ctx context.Context) error {
 }
 
 func (store *PostgresStore) GetConfig(ctx context.Context) (Config, error) {
-	var categoriesJSON, targetsJSON []byte
-	if err := store.db.QueryRowContext(ctx, `SELECT categories, category_targets FROM app_config WHERE id = 1`).Scan(&categoriesJSON, &targetsJSON); err != nil {
+	var categoriesJSON, targetsJSON, parentsJSON []byte
+	if err := store.db.QueryRowContext(ctx, `SELECT categories, category_targets, category_parents FROM app_config WHERE id = 1`).Scan(&categoriesJSON, &targetsJSON, &parentsJSON); err != nil {
 		return Config{}, err
 	}
-	config := Config{Currency: Currency, StartDate: StartDate, CategoryTargets: map[string]float64{}}
+	config := Config{Currency: Currency, StartDate: StartDate, CategoryTargets: map[string]float64{}, CategoryParents: map[string]string{}}
 	if err := json.Unmarshal(categoriesJSON, &config.Categories); err != nil {
 		return Config{}, fmt.Errorf("decode categories: %w", err)
 	}
 	if err := json.Unmarshal(targetsJSON, &config.CategoryTargets); err != nil {
 		return Config{}, fmt.Errorf("decode targets: %w", err)
+	}
+	if err := json.Unmarshal(parentsJSON, &config.CategoryParents); err != nil {
+		return Config{}, fmt.Errorf("decode category parents: %w", err)
+	}
+	for _, category := range config.Categories {
+		if !ValidateCategoryParent(config.CategoryParents[category]) {
+			config.CategoryParents[category] = DefaultCategoryParent(category)
+		}
 	}
 	return config, nil
 }
@@ -153,6 +163,15 @@ func (store *PostgresStore) UpdateCategoryTargets(ctx context.Context, targets m
 		return err
 	}
 	_, err = store.db.ExecContext(ctx, `UPDATE app_config SET category_targets = $1 WHERE id = 1`, data)
+	return err
+}
+
+func (store *PostgresStore) UpdateCategoryParents(ctx context.Context, parents map[string]string) error {
+	data, err := json.Marshal(parents)
+	if err != nil {
+		return err
+	}
+	_, err = store.db.ExecContext(ctx, `UPDATE app_config SET category_parents = $1 WHERE id = 1`, data)
 	return err
 }
 

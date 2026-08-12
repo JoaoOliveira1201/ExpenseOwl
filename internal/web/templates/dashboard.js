@@ -57,8 +57,28 @@ document.addEventListener('DOMContentLoaded', () => {
         const balanceElement = document.getElementById('balance');
         balanceElement.textContent = E.euro(balance);
         balanceElement.className = `metric-value ${balance >= 0 ? 'positive' : 'negative'}`;
+        renderAllocation(current, income);
         renderPie(current);
         renderTargets(current);
+    }
+
+    function renderAllocation(current, income) {
+        const spending = { essentials: 0, lifestyle: 0 };
+        current.filter(item => item.amount < 0).forEach(item => {
+            const parent = config.categoryParents?.[item.category] === 'lifestyle' ? 'lifestyle' : 'essentials';
+            spending[parent] += Math.abs(item.amount);
+        });
+        const values = income > 0 ? {
+            essentials: spending.essentials / income * 100,
+            lifestyle: spending.lifestyle / income * 100,
+            savings: (income - spending.essentials - spending.lifestyle) / income * 100
+        } : null;
+        ['essentials', 'lifestyle', 'savings'].forEach(kind => {
+            const element = document.getElementById(`${kind}Percent`);
+            element.textContent = values ? `${Math.round(values[kind])}%` : '—';
+            element.parentElement.setAttribute('aria-label', values ? `${kind}: ${Math.round(values[kind])}%` : `${kind}: unavailable without income`);
+        });
+        document.querySelector('.allocation-part.savings').classList.toggle('negative', Boolean(values && values.savings < 0));
     }
 
     function categoryBreakdown(current) {

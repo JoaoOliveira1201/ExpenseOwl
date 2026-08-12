@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expenseowl-v1';
+const CACHE_NAME = 'expenseowl-v2';
 const APP_SHELL = [
     '/',
     '/manifest.webmanifest',

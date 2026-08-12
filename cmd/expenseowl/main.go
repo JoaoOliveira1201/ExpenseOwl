@@ -37,6 +37,7 @@ func runServer(port int) {
 			http.NotFound(w, r)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Content-Type", "text/html")
 		if err := web.ServeTemplate(w, "index.html"); err != nil {
 			log.Printf("HTTP ERROR: Failed to serve template: %v", err)

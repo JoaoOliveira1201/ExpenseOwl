@@ -368,6 +368,7 @@ func (h *Handler) ServeTableView(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", "text/html")
 	if err := web.ServeTemplate(w, "table.html"); err != nil {
 		http.Error(w, "Failed to serve template", http.StatusInternalServerError)
@@ -379,6 +380,7 @@ func (h *Handler) ServeSettingsPage(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
 		return
 	}
+	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Content-Type", "text/html")
 	if err := web.ServeTemplate(w, "settings.html"); err != nil {
 		http.Error(w, "Failed to serve template", http.StatusInternalServerError)

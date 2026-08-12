@@ -21,11 +21,21 @@ if ! command -v go >/dev/null 2>&1; then
     exit 1
 fi
 
+if ! command -v curl >/dev/null 2>&1; then
+    echo "curl is required to verify the deployed ExpenseOwl version." >&2
+    exit 1
+fi
+
 cd "$SCRIPT_DIR"
 mkdir -p "$RUNTIME_DIR"
 
-echo "Building ExpenseOwl..."
-go build -o "$NEW_BINARY_PATH" ./cmd/expenseowl
+build_version="dev"
+if command -v git >/dev/null 2>&1; then
+    build_version="$(git rev-parse --short HEAD 2>/dev/null || printf 'dev')"
+fi
+
+echo "Building ExpenseOwl $build_version..."
+go build -ldflags "-X main.version=$build_version" -o "$NEW_BINARY_PATH" ./cmd/expenseowl
 
 if [[ -f "$PID_PATH" ]]; then
     old_pid="$(<"$PID_PATH")"
@@ -58,22 +68,31 @@ app_pid=$!
 printf '%s\n' "$app_pid" >"$PID_PATH"
 
 ready=false
+deployed_version=""
 for _ in {1..20}; do
     if ! kill -0 "$app_pid" 2>/dev/null; then
         break
     fi
-    if command -v curl >/dev/null 2>&1 && curl --fail --silent --output /dev/null "http://127.0.0.1:${HOST_PORT}/"; then
-        ready=true
-        break
-    elif ! command -v curl >/dev/null 2>&1 && (exec 3<>"/dev/tcp/127.0.0.1/${HOST_PORT}") 2>/dev/null; then
-        ready=true
-        break
+    deployed_version="$(curl --fail --silent "http://127.0.0.1:${HOST_PORT}/version" 2>/dev/null || true)"
+    if [[ "$deployed_version" == "$build_version" ]]; then
+        # Give bind failures time to terminate before accepting a response that
+        # could have come from an older process already using this port.
+        sleep 0.25
+        if kill -0 "$app_pid" 2>/dev/null; then
+            ready=true
+            break
+        fi
     fi
     sleep 0.25
 done
 
 if [[ "$ready" != "true" ]]; then
-    echo "ExpenseOwl failed to become ready. Application log:" >&2
+    rm -f "$PID_PATH"
+    echo "ExpenseOwl failed to become ready as version $build_version." >&2
+    if [[ -n "$deployed_version" ]]; then
+        echo "Port $HOST_PORT responded with version $deployed_version; another process may already be using it." >&2
+    fi
+    echo "Application log:" >&2
     tail -n 30 "$LOG_PATH" >&2 || true
     exit 1
 fi
@@ -90,6 +109,7 @@ local_ip="${local_ip:-127.0.0.1}"
 echo
 echo "ExpenseOwl is running."
 echo "Note: Android standalone PWA installation still requires an HTTPS address."
+echo "Version: $build_version"
 echo "PID: $app_pid"
 echo "Local IP: $local_ip"
 echo "Port: $HOST_PORT"

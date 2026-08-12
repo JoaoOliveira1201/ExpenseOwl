@@ -386,17 +386,23 @@ func (h *Handler) ServeSettingsPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ServeStaticFile(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		writeJSON(w, http.StatusMethodNotAllowed, ErrorResponse{Error: "Method not allowed"})
 		return
 	}
-	if r.URL.Path == "/sw.js" {
-		// Service worker updates should be checked on every visit. Its location at
-		// the origin root also gives it control over every ExpenseOwl page.
+	staticPath := r.URL.Path
+	if staticPath == "/manifest.json" {
+		staticPath = "/manifest.webmanifest"
+	}
+	if staticPath == "/sw.js" || staticPath == "/manifest.webmanifest" {
+		// PWA metadata and service worker updates should be revalidated so
+		// installed clients discover new versions promptly.
 		w.Header().Set("Cache-Control", "no-cache")
+	}
+	if staticPath == "/sw.js" {
 		w.Header().Set("Service-Worker-Allowed", "/")
 	}
-	if err := web.ServeStatic(w, r.URL.Path); err != nil {
+	if err := web.ServeStatic(w, staticPath); err != nil {
 		http.Error(w, "Failed to serve static file", http.StatusInternalServerError)
 	}
 }

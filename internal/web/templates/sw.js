@@ -1,4 +1,4 @@
-const CACHE_NAME = 'expenseowl-ledger-v1';
+const CACHE_NAME = 'expenseowl-ledger-v2';
 const APP_SHELL = [
     '/',
     '/manifest.webmanifest',

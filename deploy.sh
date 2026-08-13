@@ -20,8 +20,8 @@ git fetch --prune origin "$branch"
 git pull --ff-only origin "$branch"
 
 echo "Building the ExpenseOwl image..."
-docker compose build --pull app
+docker compose build --pull --no-cache app
 
 echo "Starting the Compose stack..."
-docker compose up -d
+docker compose up -d --force-recreate app
 docker compose ps

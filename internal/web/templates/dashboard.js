@@ -170,7 +170,7 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             E.setMessage(message, 'Saving…');
             const receipt = await E.uploadReceipt(document.getElementById('receipt').files[0]);
-            let amount = Number(document.getElementById('amount').value);
+            let amount = Number(document.getElementById('amount').value.replace(',', '.'));
             if (entryMode === 'expense') amount *= -1;
             await E.request('/expense', E.json('PUT', { name: document.getElementById('name').value, category: entryMode === 'income' ? '' : document.getElementById('category').value, amount, date: E.dateInputToISO(document.getElementById('date').value), owner: getOwner(), notes: document.getElementById('notes').value, receipt }));
             form.reset(); document.getElementById('date').value = E.localDateISO();

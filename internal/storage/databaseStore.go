@@ -25,8 +25,9 @@ func InitializeStorage() (*PostgresStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open PostgreSQL: %w", err)
 	}
-	db.SetMaxOpenConns(12)
-	db.SetMaxIdleConns(4)
+	db.SetMaxOpenConns(4)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxIdleTime(5 * time.Minute)
 	db.SetConnMaxLifetime(30 * time.Minute)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -229,7 +230,15 @@ func (store *PostgresStore) GetExpenses(ctx context.Context, filter ExpenseFilte
 		args = append(args, normalizeOwner(filter.Owner))
 		clauses = append(clauses, fmt.Sprintf("owner = $%d", len(args)))
 	}
-	query := `SELECT ` + expenseColumns + ` FROM expenses WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY date DESC`
+	if filter.Cursor != nil {
+		args = append(args, filter.Cursor.Date, filter.Cursor.ID)
+		clauses = append(clauses, fmt.Sprintf("(date, id) < ($%d, $%d)", len(args)-1, len(args)))
+	}
+	query := `SELECT ` + expenseColumns + ` FROM expenses WHERE ` + strings.Join(clauses, " AND ") + ` ORDER BY date DESC, id DESC`
+	if filter.Limit > 0 {
+		args = append(args, filter.Limit+1)
+		query += fmt.Sprintf(" LIMIT $%d", len(args))
+	}
 	rows, err := store.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -344,7 +353,7 @@ func (store *PostgresStore) AddRecurringExpense(ctx context.Context, recurring R
 	if err != nil {
 		return RecurringExpense{}, err
 	}
-	if err := insertGenerated(ctx, tx, generateExpenses(recurring, false)); err != nil {
+	if err := insertGenerated(ctx, tx, recurring, false); err != nil {
 		return RecurringExpense{}, err
 	}
 	return recurring, tx.Commit()
@@ -373,7 +382,7 @@ func (store *PostgresStore) UpdateRecurringExpense(ctx context.Context, id strin
 	if err != nil {
 		return err
 	}
-	if err := insertGenerated(ctx, tx, generateExpenses(recurring, !updateAll)); err != nil {
+	if err := insertGenerated(ctx, tx, recurring, !updateAll); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -404,35 +413,38 @@ func (store *PostgresStore) RemoveRecurringExpense(ctx context.Context, id strin
 	return tx.Commit()
 }
 
-func insertGenerated(ctx context.Context, tx *sql.Tx, expenses []Expense) error {
+func insertGenerated(ctx context.Context, tx *sql.Tx, recurring RecurringExpense, futureOnly bool) error {
 	statement, err := tx.PrepareContext(ctx, `INSERT INTO expenses (`+expenseColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`)
 	if err != nil {
 		return err
 	}
 	defer statement.Close()
-	for _, expense := range expenses {
+	return forEachGeneratedExpense(recurring, futureOnly, func(expense Expense) error {
 		if _, err := statement.ExecContext(ctx, expense.ID, expense.RecurringID, expense.Name, expense.Category, expense.Amount, expense.Date, expense.Owner, expense.Notes, expense.Receipt); err != nil {
 			return err
 		}
-	}
-	return nil
+		return nil
+	})
 }
 
-func generateExpenses(recurring RecurringExpense, futureOnly bool) []Expense {
+func forEachGeneratedExpense(recurring RecurringExpense, futureOnly bool, visit func(Expense) error) error {
 	date := recurring.StartDate
 	remaining := recurring.Occurrences
 	if futureOnly {
-		for date.Before(time.Now()) && remaining > 0 {
+		now := time.Now()
+		for date.Before(now) && remaining > 0 {
 			date = nextOccurrence(date, recurring.Interval)
 			remaining--
 		}
 	}
-	expenses := make([]Expense, 0, remaining)
 	for range remaining {
-		expenses = append(expenses, Expense{ID: uuid.NewString(), RecurringID: recurring.ID, Name: recurring.Name, Category: recurring.Category, Amount: recurring.Amount, Date: date, Owner: recurring.Owner, Notes: recurring.Notes})
+		expense := Expense{ID: uuid.NewString(), RecurringID: recurring.ID, Name: recurring.Name, Category: recurring.Category, Amount: recurring.Amount, Date: date, Owner: recurring.Owner, Notes: recurring.Notes}
+		if err := visit(expense); err != nil {
+			return err
+		}
 		date = nextOccurrence(date, recurring.Interval)
 	}
-	return expenses
+	return nil
 }
 
 func nextOccurrence(date time.Time, interval string) time.Time {

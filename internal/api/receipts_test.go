@@ -67,3 +67,20 @@ func TestUploadRejectsExecutable(t *testing.T) {
 		t.Fatalf("expected bad request, got %d", recorder.Code)
 	}
 }
+
+func TestUploadRejectsOversizedReceiptWithoutLeavingFile(t *testing.T) {
+	handler := &Handler{receiptDir: t.TempDir()}
+	data := append([]byte("\x89PNG\r\n\x1a\n"), bytes.Repeat([]byte("x"), 5<<20)...)
+	recorder := httptest.NewRecorder()
+	handler.UploadReceipt(recorder, receiptRequest(t, "receipt.png", data))
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected bad request, got %d", recorder.Code)
+	}
+	entries, err := os.ReadDir(handler.receiptDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("oversized upload left temporary files: %v", entries)
+	}
+}

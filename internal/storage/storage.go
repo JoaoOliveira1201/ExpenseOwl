@@ -9,10 +9,11 @@ import (
 )
 
 const (
-	Currency        = "EUR"
-	StartDate       = 1
-	ParentEssential = "essentials"
-	ParentLifestyle = "lifestyle"
+	Currency                = "EUR"
+	StartDate               = 1
+	ParentEssential         = "essentials"
+	ParentLifestyle         = "lifestyle"
+	MaxRecurringOccurrences = 1200
 )
 
 var defaultCategories = []string{
@@ -47,7 +48,7 @@ type Config struct {
 	Categories        []string           `json:"categories"`
 	CategoryTargets   map[string]float64 `json:"categoryTargets"`
 	CategoryParents   map[string]string  `json:"categoryParents"`
-	AllocationTargets AllocationTargets `json:"allocationTargets"`
+	AllocationTargets AllocationTargets  `json:"allocationTargets"`
 	Currency          string             `json:"currency"`
 	StartDate         int                `json:"startDate"`
 }
@@ -90,9 +91,16 @@ func ValidateCategoryParent(parent string) bool {
 }
 
 type ExpenseFilter struct {
-	From  *time.Time
-	To    *time.Time
-	Owner string
+	From   *time.Time
+	To     *time.Time
+	Owner  string
+	Limit  int
+	Cursor *ExpenseCursor
+}
+
+type ExpenseCursor struct {
+	Date time.Time
+	ID   string
 }
 
 type Expense struct {
@@ -200,6 +208,9 @@ func (recurring *RecurringExpense) Validate() error {
 	}
 	if recurring.Occurrences < 2 {
 		return fmt.Errorf("at least 2 occurrences are required")
+	}
+	if recurring.Occurrences > MaxRecurringOccurrences {
+		return fmt.Errorf("occurrences cannot exceed %d", MaxRecurringOccurrences)
 	}
 	if len(recurring.Notes) > 2000 {
 		return fmt.Errorf("notes cannot exceed 2000 characters")

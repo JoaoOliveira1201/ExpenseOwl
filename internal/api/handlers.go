@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -228,6 +230,10 @@ func (h *Handler) GetExpenses(w http.ResponseWriter, r *http.Request) {
 		h.serverError(w, "load transactions", err)
 		return
 	}
+	if filter.Limit > 0 && len(expenses) > filter.Limit {
+		expenses = expenses[:filter.Limit]
+		w.Header().Set("X-Next-Cursor", encodeExpenseCursor(expenses[len(expenses)-1]))
+	}
 	writeJSON(w, http.StatusOK, expenses)
 }
 
@@ -404,29 +410,69 @@ func (h *Handler) UploadReceipt(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
+	if err := r.ParseMultipartForm(64 << 10); err != nil {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Choose a receipt image or PDF up to 5 MB"})
+		return
+	}
+	if r.MultipartForm != nil {
+		defer r.MultipartForm.RemoveAll()
+	}
 	file, _, err := r.FormFile("receipt")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Choose a receipt image or PDF up to 5 MB"})
 		return
 	}
 	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, (5<<20)+1))
-	if err != nil || len(data) == 0 || len(data) > 5<<20 {
+	header := make([]byte, 512)
+	headerSize, err := io.ReadFull(file, header)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		h.serverError(w, "read receipt", err)
+		return
+	}
+	if headerSize == 0 {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Receipt must be between 1 byte and 5 MB"})
 		return
 	}
 	extensions := map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "application/pdf": ".pdf"}
-	extension, ok := extensions[http.DetectContentType(data)]
+	extension, ok := extensions[http.DetectContentType(header[:headerSize])]
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Receipt must be a JPG, PNG, WebP, or PDF"})
 		return
 	}
-	name := uuid.NewString() + extension
 	if err := os.MkdirAll(h.receiptDir, 0o755); err != nil {
 		h.serverError(w, "prepare receipt storage", err)
 		return
 	}
-	if err := os.WriteFile(filepath.Join(h.receiptDir, name), data, 0o644); err != nil {
+	temporary, err := os.CreateTemp(h.receiptDir, ".receipt-*")
+	if err != nil {
+		h.serverError(w, "store receipt", err)
+		return
+	}
+	temporaryName := temporary.Name()
+	defer func() {
+		_ = temporary.Close()
+		_ = os.Remove(temporaryName)
+	}()
+	const maxReceiptSize = int64(5 << 20)
+	written, err := io.Copy(temporary, io.MultiReader(bytes.NewReader(header[:headerSize]), io.LimitReader(file, maxReceiptSize+1-int64(headerSize))))
+	if err != nil {
+		h.serverError(w, "store receipt", err)
+		return
+	}
+	if written > maxReceiptSize {
+		writeJSON(w, http.StatusBadRequest, ErrorResponse{"Receipt must be between 1 byte and 5 MB"})
+		return
+	}
+	if err := temporary.Chmod(0o644); err != nil {
+		h.serverError(w, "store receipt", err)
+		return
+	}
+	if err := temporary.Close(); err != nil {
+		h.serverError(w, "store receipt", err)
+		return
+	}
+	name := uuid.NewString() + extension
+	if err := os.Rename(temporaryName, filepath.Join(h.receiptDir, name)); err != nil {
 		h.serverError(w, "store receipt", err)
 		return
 	}
@@ -517,5 +563,48 @@ func expenseFilter(r *http.Request) (storage.ExpenseFilter, error) {
 		}
 		*destination = &parsed
 	}
+	limitValue := r.URL.Query().Get("limit")
+	if limitValue == "" {
+		if filter.From == nil && filter.To == nil {
+			filter.Limit = 100
+		}
+	} else {
+		limit, err := strconv.Atoi(limitValue)
+		if err != nil || limit < 1 || limit > 200 {
+			return filter, fmt.Errorf("limit must be between 1 and 200")
+		}
+		filter.Limit = limit
+	}
+	if cursorValue := r.URL.Query().Get("cursor"); cursorValue != "" {
+		cursor, err := decodeExpenseCursor(cursorValue)
+		if err != nil {
+			return filter, fmt.Errorf("invalid expense cursor")
+		}
+		filter.Cursor = &cursor
+		if filter.Limit == 0 {
+			filter.Limit = 100
+		}
+	}
 	return filter, nil
+}
+
+func encodeExpenseCursor(expense storage.Expense) string {
+	value := expense.Date.UTC().Format(time.RFC3339Nano) + "|" + expense.ID
+	return base64.RawURLEncoding.EncodeToString([]byte(value))
+}
+
+func decodeExpenseCursor(value string) (storage.ExpenseCursor, error) {
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	if err != nil {
+		return storage.ExpenseCursor{}, err
+	}
+	parts := strings.SplitN(string(decoded), "|", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		return storage.ExpenseCursor{}, fmt.Errorf("missing cursor fields")
+	}
+	date, err := time.Parse(time.RFC3339Nano, parts[0])
+	if err != nil {
+		return storage.ExpenseCursor{}, err
+	}
+	return storage.ExpenseCursor{Date: date, ID: parts[1]}, nil
 }

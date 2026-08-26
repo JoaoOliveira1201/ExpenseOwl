@@ -54,6 +54,13 @@ func TestRecurringIncomeDoesNotHaveCategory(t *testing.T) {
 	}
 }
 
+func TestRecurringOccurrencesAreBounded(t *testing.T) {
+	recurring := RecurringExpense{Name: "Rent", Category: "Rent", Amount: -900, StartDate: time.Now(), Interval: "monthly", Occurrences: MaxRecurringOccurrences + 1}
+	if err := recurring.Validate(); err == nil {
+		t.Fatal("expected excessive recurring occurrences to be rejected")
+	}
+}
+
 func TestCategoryParentDefaultsAndValidation(t *testing.T) {
 	if DefaultCategoryParent("Shopping") != ParentLifestyle {
 		t.Fatal("shopping should default to lifestyle")
@@ -77,7 +84,14 @@ func TestAllocationTargetsValidation(t *testing.T) {
 
 func TestGenerateMonthlyExpenses(t *testing.T) {
 	start := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	items := generateExpenses(RecurringExpense{ID: "rule", Name: "Rent", Category: "Rent", Amount: -900, StartDate: start, Interval: "monthly", Occurrences: 3, Owner: "common"}, false)
+	items := make([]Expense, 0, 3)
+	err := forEachGeneratedExpense(RecurringExpense{ID: "rule", Name: "Rent", Category: "Rent", Amount: -900, StartDate: start, Interval: "monthly", Occurrences: 3, Owner: "common"}, false, func(expense Expense) error {
+		items = append(items, expense)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(items) != 3 || !items[2].Date.Equal(start.AddDate(0, 2, 0)) {
 		t.Fatalf("unexpected generated expenses: %#v", items)
 	}

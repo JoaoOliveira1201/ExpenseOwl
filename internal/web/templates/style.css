@@ -172,6 +172,7 @@ textarea { resize: vertical; }
 .filter-panel { display: grid; grid-template-columns: 2fr repeat(3, 1fr) auto; gap: 12px; margin-bottom: 14px; padding: 17px; border: 1px solid rgba(167,181,168,.72); border-radius: var(--radius); background: rgba(255,253,248,.8); box-shadow: 0 8px 24px rgba(44,61,52,.05); }
 .filter-panel label { display: block; margin-bottom: 5px; color: var(--ink-soft); font-size: 11px; font-weight: 700; }
 .filter-panel .button { align-self: end; }
+.pagination { display: flex; justify-content: center; margin-top: 18px; }
 .table-wrap { overflow-x: auto; border: 1px solid rgba(167,181,168,.72); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow); }
 table { width: 100%; border-collapse: collapse; background: var(--paper); }
 th { padding: 13px 15px; color: var(--ink-soft); background: var(--paper-warm); font: 750 10px/1 var(--utility); letter-spacing: .12em; text-align: left; text-transform: uppercase; }

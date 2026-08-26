@@ -66,6 +66,13 @@ const ExpenseOwl = (() => {
         return data;
     }
 
+    async function requestPage(url) {
+        const response = await fetch(url);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+        return { data, nextCursor: response.headers.get('X-Next-Cursor') || '' };
+    }
+
     function json(method, body) {
         return { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
     }
@@ -104,5 +111,5 @@ const ExpenseOwl = (() => {
         return result.receipt;
     }
 
-    return { euro, monthLabel, monthBounds, inMonth, ownerExpenses, savedOwner, ownerLabel, bindOwnerRail, request, json, localDateISO, dateInputToISO, dateTime, escape, setMessage, uploadReceipt };
+    return { euro, monthLabel, monthBounds, inMonth, ownerExpenses, savedOwner, ownerLabel, bindOwnerRail, request, requestPage, json, localDateISO, dateInputToISO, dateTime, escape, setMessage, uploadReceipt };
 })();

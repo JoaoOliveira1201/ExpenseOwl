@@ -4,19 +4,27 @@ document.addEventListener('DOMContentLoaded', () => {
     let expenses = [];
     let config;
     let editing = null;
+    let nextCursor = '';
     let getOwner = E.bindOwnerRail(document.getElementById('ownerRail'), render);
     const form = document.getElementById('expenseForm');
     const editor = document.getElementById('editor');
     const filterInputs = ['search','filterCategory','filterType','filterAmount'].map(id => document.getElementById(id));
     document.getElementById('date').value = E.localDateISO();
 
-    async function load() {
+    async function load(append = false) {
         let url = '/expenses';
-        if (!document.getElementById('showAll').checked) {
+        if (document.getElementById('showAll').checked) {
+            const params = new URLSearchParams({ limit: '100' });
+            if (append && nextCursor) params.set('cursor', nextCursor);
+            const page = await E.requestPage(`${url}?${params}`);
+            expenses = append ? expenses.concat(page.data) : page.data;
+            nextCursor = page.nextCursor;
+        } else {
             const { start, end } = E.monthBounds(currentDate);
             url += `?from=${encodeURIComponent(start.toISOString())}&to=${encodeURIComponent(end.toISOString())}`;
+            expenses = await E.request(url);
+            nextCursor = '';
         }
-        expenses = await E.request(url);
         render();
     }
 
@@ -38,9 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('prevMonth').disabled = allDates;
         document.getElementById('nextMonth').disabled = allDates;
         const items = filtered();
-        document.getElementById('resultCount').textContent = `${items.length} transaction${items.length === 1 ? '' : 's'} in this view.`;
+        const moreAvailable = allDates && nextCursor;
+        document.getElementById('resultCount').textContent = moreAvailable
+            ? `${items.length} matching among ${expenses.length} loaded transactions. More are available.`
+            : `${items.length} transaction${items.length === 1 ? '' : 's'} in this view.`;
         document.getElementById('rows').innerHTML = items.map(expense => `<tr data-id="${expense.id}"><td>${E.dateTime(expense.date)}</td><td><strong>${E.escape(expense.name)}</strong>${expense.receipt ? ` <a href="${E.escape(expense.receipt)}" target="_blank" aria-label="View receipt">↗</a>` : ''}</td><td>${expense.amount > 0 ? '—' : E.escape(expense.category)}</td><td>${E.ownerLabel(expense.owner)}</td><td class="notes" title="${E.escape(expense.notes || '')}">${E.escape(expense.notes || '—')}</td><td class="amount ${expense.amount > 0 ? 'gain' : 'cost'}">${E.euro(expense.amount)}</td><td><div class="row-actions"><button class="icon-button edit" aria-label="Edit">Edit</button><button class="icon-button delete" aria-label="Delete">Delete</button></div></td></tr>`).join('');
         document.getElementById('empty').hidden = items.length !== 0;
+        document.getElementById('loadMore').hidden = !moreAvailable;
     }
 
     function openEditor(expense) {
@@ -71,7 +83,13 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('cancelEdit').addEventListener('click', closeEditor);
     document.getElementById('prevMonth').addEventListener('click', async () => { currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 15); await load(); });
     document.getElementById('nextMonth').addEventListener('click', async () => { currentDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 15); await load(); });
-    document.getElementById('showAll').addEventListener('change', load);
+    document.getElementById('showAll').addEventListener('change', () => load());
+    document.getElementById('loadMore').addEventListener('click', async event => {
+        event.currentTarget.disabled = true;
+        try { await load(true); }
+        catch (error) { alert(error.message); }
+        finally { event.currentTarget.disabled = false; }
+    });
     filterInputs.forEach(input => input.addEventListener('input', render));
     document.getElementById('clearFilters').addEventListener('click', () => { filterInputs.forEach(input => input.value = ''); render(); });
     document.getElementById('gain').addEventListener('change', syncCategoryField);

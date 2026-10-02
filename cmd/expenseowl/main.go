@@ -36,6 +36,7 @@ func main() {
 	mux.HandleFunc("GET /settings", handler.ServePage("settings.html"))
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(version)) })
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	mux.Handle("/mcp", handler.MCPHandler(os.Getenv("MCP_TOKEN"), version))
 
 	mux.HandleFunc("/config", handler.GetConfig)
 	mux.HandleFunc("/categories", handler.GetCategories)

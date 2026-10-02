@@ -1,9 +1,13 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -183,8 +187,8 @@ func TestMCPDiscoveryAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tools.Tools) != 14 {
-		t.Fatalf("expected 14 tools, got %d", len(tools.Tools))
+	if len(tools.Tools) != 15 {
+		t.Fatalf("expected 15 tools, got %d", len(tools.Tools))
 	}
 	readOnly := map[string]bool{"get_config": true, "get_expense": true, "list_expenses": true, "list_recurring_expenses": true}
 	for _, tool := range tools.Tools {
@@ -206,6 +210,78 @@ func TestMCPDiscoveryAndPagination(t *testing.T) {
 	page = callMCP(t, ctx, session, "list_expenses", map[string]any{"limit": 2, "cursor": page["nextCursor"]})
 	if store.filter.Cursor == nil || store.filter.Cursor.ID != "second" || len(page["expenses"].([]any)) != 1 || page["nextCursor"] != nil {
 		t.Fatalf("invalid final page: %+v", page)
+	}
+}
+
+func TestMCPReceiptUploadAndAttachmentLifecycle(t *testing.T) {
+	store := &mcpTestStore{}
+	handler := &Handler{storage: store, receiptDir: t.TempDir()}
+	session, ctx := mcpTestSession(t, handler)
+	var imageData bytes.Buffer
+	if err := png.Encode(&imageData, image.NewRGBA(image.Rect(0, 0, 1, 1))); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise the full supported size over HTTP, well beyond the former 1 MB cap.
+	data := append(imageData.Bytes(), make([]byte, (5<<20)-imageData.Len())...)
+	uploaded := callMCP(t, ctx, session, "upload_receipt", map[string]any{"data": base64.StdEncoding.EncodeToString(data)})
+	reference := uploaded["receipt"].(string)
+	path := filepath.Join(handler.receiptDir, strings.TrimPrefix(reference, "/receipts/"))
+	saved, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(saved, data) || !strings.HasSuffix(reference, ".png") {
+		t.Fatalf("receipt bytes or type not preserved: %v", err)
+	}
+	created := callMCP(t, ctx, session, "add_expense", map[string]any{"name": "Lunch", "amount": -12.5, "category": "Food", "date": "2026-10-02T12:00:00Z", "receipt": reference})
+	if created["receipt"] != reference || store.expense.Receipt != reference {
+		t.Fatalf("receipt not attached: %+v", created)
+	}
+	callMCP(t, ctx, session, "update_expense", map[string]any{"id": "created", "notes": "Keep receipt"})
+	if store.expense.Receipt != reference {
+		t.Fatal("partial update lost receipt")
+	}
+	replacement := callMCP(t, ctx, session, "upload_receipt", map[string]any{"data": base64.StdEncoding.EncodeToString(imageData.Bytes())})["receipt"].(string)
+	updated := callMCP(t, ctx, session, "update_expense", map[string]any{"id": "created", "receipt": replacement})
+	if updated["receipt"] != replacement {
+		t.Fatalf("receipt not replaced: %+v", updated)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("replaced receipt not removed: %v", err)
+	}
+	callMCP(t, ctx, session, "update_expense", map[string]any{"id": "created", "receipt": ""})
+	if store.expense.Receipt != "" {
+		t.Fatal("receipt not detached")
+	}
+	entries, err := os.ReadDir(handler.receiptDir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("detached receipt not removed: %v, %v", entries, err)
+	}
+}
+
+func TestMCPReceiptUploadRejectsInvalidFiles(t *testing.T) {
+	store := &mcpTestStore{}
+	handler := &Handler{storage: store, receiptDir: t.TempDir()}
+	session, ctx := mcpTestSession(t, handler)
+	for _, test := range []struct {
+		name, data string
+	}{
+		{"empty", ""},
+		{"invalid base64", "not base64!"},
+		{"data URL", "data:image/png;base64,iVBORw0KGgo="},
+		{"unsupported type", base64.StdEncoding.EncodeToString([]byte("MZ executable"))},
+		{"oversized", base64.StdEncoding.EncodeToString(make([]byte, (5<<20)+1))},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			result, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "upload_receipt", Arguments: map[string]any{"data": test.data}})
+			if err != nil && !strings.Contains(err.Error(), "invalid params") {
+				t.Fatal(err)
+			}
+			if err == nil && !result.IsError {
+				t.Fatal("invalid receipt accepted")
+			}
+			entries, err := os.ReadDir(handler.receiptDir)
+			if err != nil || len(entries) != 0 || store.writes != 0 {
+				t.Fatalf("invalid upload changed files or transactions: %v, %v", entries, err)
+			}
+		})
 	}
 }
 

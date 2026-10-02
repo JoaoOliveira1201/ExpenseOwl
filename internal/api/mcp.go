@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/url"
 	"strings"
@@ -41,7 +43,8 @@ func (h *Handler) MCPHandler(token, version string) http.Handler {
 			writeJSON(w, http.StatusForbidden, ErrorResponse{"Browser origins are not allowed on the MCP endpoint"})
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+		// A 5 MB receipt needs nearly 7 MB when encoded as base64 in JSON.
+		r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
 		transport.ServeHTTP(w, r)
 	})
 }
@@ -66,7 +69,10 @@ func (h *Handler) addMCPTools(server *mcp.Server) {
 		return fields
 	}
 	idField := map[string]any{"type": "string", "minLength": 1, "description": "Exact ID returned by a list or get tool"}
+	expenseFields := transactionFields()
+	expenseFields["receipt"] = map[string]any{"type": "string", "description": "Exact receipt reference returned by upload_receipt. On update, omit to preserve the attachment or use an empty string to remove it."}
 	updateFields := transactionFields()
+	updateFields["receipt"] = expenseFields["receipt"]
 	updateFields["id"] = idField
 	recurringUpdateFields := recurringFields()
 	recurringUpdateFields["id"] = idField
@@ -81,8 +87,8 @@ func (h *Handler) addMCPTools(server *mcp.Server) {
 			"limit":  map[string]any{"type": "integer", "minimum": 1, "maximum": 200, "default": 100},
 			"cursor": map[string]any{"type": "string", "description": "Opaque nextCursor from the previous page"},
 		}},
-		{name: "add_expense", description: "Create an expense (negative amount) or income (positive amount). Returns the saved transaction and ID.", method: http.MethodPut, path: "/expense", handler: h.AddExpense, properties: transactionFields(), required: []string{"name", "amount", "date"}},
-		{name: "update_expense", description: "Update an existing transaction by ID. Only supplied fields change; attachments and recurring links are preserved.", method: http.MethodPut, path: "/expense/edit", handler: h.EditExpense, properties: updateFields, required: []string{"id"}, query: []string{"id"}, prepare: h.patchMCPExpense},
+		{name: "add_expense", description: "Create an expense (negative amount) or income (positive amount). To attach a receipt, call upload_receipt first and pass its receipt reference. Returns the saved transaction and ID.", method: http.MethodPut, path: "/expense", handler: h.AddExpense, properties: expenseFields, required: []string{"name", "amount", "date"}},
+		{name: "update_expense", description: "Update an existing transaction by ID. Only supplied fields change; omitted attachments and recurring links are preserved. Pass the reference from upload_receipt to attach or replace a receipt.", method: http.MethodPut, path: "/expense/edit", handler: h.EditExpense, properties: updateFields, required: []string{"id"}, query: []string{"id"}, prepare: h.patchMCPExpense},
 		{name: "delete_expense", description: "Permanently delete one transaction and its receipt attachment by ID.", method: http.MethodDelete, path: "/expense/delete", handler: h.DeleteExpense, properties: map[string]any{"id": idField}, required: []string{"id"}, query: []string{"id"}, destructive: true},
 		{name: "list_recurring_expenses", description: "List recurring expense and income schedules, including IDs and recurrence settings.", method: http.MethodGet, path: "/recurring-expenses", handler: h.GetRecurringExpenses, readOnly: true, resultKey: "recurringExpenses"},
 		{name: "add_recurring_expense", description: "Create a recurring expense or income schedule and generate its transactions. Negative amount is spending; positive is income.", method: http.MethodPut, path: "/recurring-expense", handler: h.AddRecurringExpense, properties: recurringFields(), required: []string{"name", "amount", "startDate", "interval", "occurrences"}},
@@ -108,6 +114,13 @@ func (h *Handler) addMCPTools(server *mcp.Server) {
 	for _, tool := range tools {
 		tool.addTo(server)
 	}
+	mcp.AddTool(server, &mcp.Tool{
+		Name: "upload_receipt", Description: "Upload a JPG, PNG, WebP, or PDF receipt up to 5 MB. Send the actual file bytes as standard base64, without a data URL prefix; never invent image data. Returns a receipt reference to pass to add_expense or update_expense. Local paths on the agent host are not accessible to this server.",
+		InputSchema: mcpObjectSchema(map[string]any{
+			"data": map[string]any{"type": "string", "minLength": 1, "maxLength": base64.StdEncoding.EncodedLen(5 << 20), "description": "Standard base64 encoding of the complete receipt file"},
+		}, []string{"data"}),
+		Annotations: &mcp.ToolAnnotations{},
+	}, h.uploadMCPReceipt)
 	mcp.AddTool(server, &mcp.Tool{Name: "get_expense", Description: "Read one transaction by its exact ID, including notes, receipt reference, and recurring link.", InputSchema: mcpObjectSchema(map[string]any{"id": idField}, []string{"id"}), Annotations: &mcp.ToolAnnotations{ReadOnlyHint: true}}, func(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
 		expense, err := h.storage.GetExpense(ctx, input["id"].(string))
 		if err != nil {
@@ -115,6 +128,47 @@ func (h *Handler) addMCPTools(server *mcp.Server) {
 		}
 		return nil, expense, nil
 	})
+}
+
+func (h *Handler) uploadMCPReceipt(ctx context.Context, _ *mcp.CallToolRequest, input map[string]any) (*mcp.CallToolResult, any, error) {
+	data, err := base64.StdEncoding.DecodeString(input["data"].(string))
+	if err != nil {
+		return nil, nil, fmt.Errorf("receipt data must be valid standard base64 without a data URL prefix")
+	}
+	if len(data) == 0 || len(data) > 5<<20 {
+		return nil, nil, fmt.Errorf("receipt must be between 1 byte and 5 MB")
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("receipt", "receipt")
+	if err != nil {
+		return nil, nil, err
+	}
+	if _, err := part.Write(data); err != nil {
+		return nil, nil, err
+	}
+	if err := writer.Close(); err != nil {
+		return nil, nil, err
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, "/receipt/upload", &body)
+	if err != nil {
+		return nil, nil, err
+	}
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	response := &mcpHTTPResponse{header: http.Header{}, status: http.StatusOK}
+	h.UploadReceipt(response, request)
+	if response.status >= 400 {
+		var failure ErrorResponse
+		if err := json.Unmarshal(response.body.Bytes(), &failure); err != nil {
+			return nil, nil, fmt.Errorf("receipt upload failed (HTTP %d)", response.status)
+		}
+		return nil, nil, fmt.Errorf("%s", failure.Error)
+	}
+	var result map[string]string
+	if err := json.Unmarshal(response.body.Bytes(), &result); err != nil {
+		return nil, nil, fmt.Errorf("could not decode receipt upload response")
+	}
+	return nil, result, nil
 }
 
 type mcpHTTPTool struct {

@@ -101,12 +101,15 @@ Available tools:
 | `get_config` | Read categories, budgets, category groups, and allocation targets |
 | `list_expenses`, `get_expense` | Read transactions, with dates, owners, notes, and receipt references |
 | `add_expense`, `update_expense`, `delete_expense` | Create, partially update, or delete a transaction |
+| `upload_receipt` | Upload base64 receipt bytes and return a reference for a transaction |
 | `list_recurring_expenses`, `add_recurring_expense`, `update_recurring_expense`, `delete_recurring_expense` | Manage schedules and generated transactions |
 | `update_categories`, `update_category_targets`, `update_category_parents`, `update_allocation_targets` | Change ledger settings |
 
 Amounts are in EUR: **negative means spending; positive means income**. Spending needs a category; income has no category. Dates use RFC3339 timestamps with a timezone, such as `2026-10-02T12:00:00+01:00`. Omitted owners default to `common`. Expense lists default to 100 items, allow up to 200, and return `nextCursor` when another page exists. Pass that value as `cursor`; follow all pages when calculating totals. `from` is inclusive and `to` is exclusive.
 
-Transaction and recurring updates change only supplied fields. Existing receipt attachments remain attached to edited transactions; deleting a transaction also deletes its attachment. Recurring updates/deletions affect future generated entries by default. `updateAll: true` or `removeAll: true` also replaces or deletes historical generated entries. Settings tools replace their corresponding list or mapping, so read `get_config` first to preserve other values. Receipt uploads remain available through the web interface.
+Transaction and recurring updates change only supplied fields. Existing receipt attachments remain attached to edited transactions; deleting a transaction also deletes its attachment. Recurring updates/deletions affect future generated entries by default. `updateAll: true` or `removeAll: true` also replaces or deletes historical generated entries. Settings tools replace their corresponding list or mapping, so read `get_config` first to preserve other values.
+
+To attach an image or PDF through MCP, call `upload_receipt` with `data` containing the actual file's standard base64 encoding (no `data:` prefix). JPG, PNG, WebP, and PDF files up to 5 MB are supported, with the same content validation as web uploads. The agent must read and encode the file; a local path alone cannot be uploaded because the MCP server cannot access files on the agent host. Pass the returned `receipt` reference to `add_expense` or `update_expense`. On updates, omitting `receipt` keeps the current attachment, passing a new reference replaces it and deletes the old file, and passing `receipt: ""` removes it. Uploads also remain available through the web interface. After upgrading the server, reload MCP in Hermes to discover the new tool and fields.
 
 Every MCP request requires the token, which grants all listed tools, including writes and deletes. The MCP endpoint rejects browser-origin requests. Keep it on a trusted private network or use HTTPS. MCP authentication covers `/mcp`; the web interface and existing HTTP endpoints still rely on your network or reverse-proxy access controls.
 
